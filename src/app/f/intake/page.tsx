@@ -145,7 +145,7 @@ export default function ManualIntakeForm() {
           </div>
 
           <Link 
-            href="/review"
+            href="/review-queue"
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 transition-all"
           >
             Open Review Queue <ArrowRight className="h-4 w-4" />
