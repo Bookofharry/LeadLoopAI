@@ -8,6 +8,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "LeadLoop AI",
   description: "Turn every customer conversation into an actionable sales pipeline.",
+  verification: {
+    google: "xmuESL2plqy5ifX5aoA8GVcYwLPEM3H4p6yffFytnTI",
+  },
 };
 
 export default function RootLayout({
