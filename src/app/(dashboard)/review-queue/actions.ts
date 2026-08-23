@@ -110,7 +110,7 @@ export async function approveReview(reviewId: string, correctedData: AIQualifica
     const result = await continueLeadProcessing(
       companyId,
       source as any,
-      correctedData,
+      correctedData as any,
       interactionId,
       runId || "",
       true // isHumanApproved

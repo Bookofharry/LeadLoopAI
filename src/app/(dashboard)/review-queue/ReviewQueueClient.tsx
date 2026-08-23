@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { formatDistanceToNow, format } from "date-fns"
 import { MessageSquare, AlertTriangle, User, Building, MapPin, Briefcase, Mail, Phone, Clock, DollarSign, Check, X, Database, ListFilter } from "lucide-react"
 import { approveReview, rejectReview } from "./actions"
@@ -45,6 +45,42 @@ export default function ReviewQueueClient({ initialReviews }: { initialReviews: 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedReview])
+
+  // Focus Trap
+  const modalRef = useRef<HTMLDivElement>(null)
+  
+  useEffect(() => {
+    if (!selectedReview || !modalRef.current) return
+    
+    const focusableElements = modalRef.current.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+    const firstElement = focusableElements[0] as HTMLElement
+    const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement
+    
+    if (firstElement) firstElement.focus()
+
+    const handleTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return
+      
+      if (e.shiftKey) { 
+        if (document.activeElement === firstElement) {
+          e.preventDefault()
+          lastElement.focus()
+        }
+      } else { 
+        if (document.activeElement === lastElement) {
+          e.preventDefault()
+          firstElement.focus()
+        }
+      }
+    }
+    
+    const currentRef = modalRef.current
+    currentRef.addEventListener('keydown', handleTab)
+    return () => currentRef.removeEventListener('keydown', handleTab)
+  }, [selectedReview])
+  
 
   const handleApprove = async () => {
     if (!selectedReview || !editData) return
@@ -186,7 +222,7 @@ export default function ReviewQueueClient({ initialReviews }: { initialReviews: 
 
       {selectedReview && editData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+          <div ref={modalRef} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             
             <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-zinc-50 dark:bg-zinc-950/50">
               <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">

@@ -148,7 +148,7 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
     return await continueLeadProcessing(
       payload.companyId,
       payload.source,
-      aiResult,
+      aiResult as any,
       interactionId!,
       automationRunId!,
       false

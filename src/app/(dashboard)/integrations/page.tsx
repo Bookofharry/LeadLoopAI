@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Blocks, Mail, Send, Database, Globe, Code2, Copy, Check, Key, CheckCircle2, AlertTriangle, X } from "lucide-react"
-import { generateIntegrationKey } from "./actions"
+import { generateIntegrationKey, getGmailIntegration, disconnectGmailIntegration } from "./actions"
 
 export default function IntegrationsPage() {
   const [showWebFormGuide, setShowWebFormGuide] = useState(false)
@@ -12,21 +12,49 @@ export default function IntegrationsPage() {
   const [loading, setLoading] = useState(false)
   const [baseUrl, setBaseUrl] = useState("https://your-leadloop-domain.com")
   const [showWarningModal, setShowWarningModal] = useState(false)
+  
+  const [gmailStatus, setGmailStatus] = useState("Not Connected")
+  const [gmailAccount, setGmailAccount] = useState<string | null>(null)
 
   // Use useEffect to grab the actual domain on the client side
   useEffect(() => {
     if (typeof window !== "undefined") {
       setBaseUrl(window.location.origin)
     }
+    getGmailIntegration().then(data => {
+      if (data) {
+        setGmailStatus(data.status || 'Connected')
+        setGmailAccount(data.connected_account || null)
+      }
+    }).catch(console.error)
   }, [])
+
+  const handleDisconnectGmail = async () => {
+    setLoading(true)
+    const res = await disconnectGmailIntegration()
+    if (res.success) {
+      setGmailStatus("Not Connected")
+      setGmailAccount(null)
+    } else {
+      console.error(res.error)
+    }
+    setLoading(false)
+  }
 
   const integrations = [
     {
       name: 'Gmail',
-      description: 'Automatically process incoming lead emails.',
-      status: 'Not Connected',
+      description: gmailAccount ? `Connected to ${gmailAccount}` : 'Automatically process incoming lead emails.',
+      status: gmailStatus,
       icon: Mail,
       color: 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400',
+      action: () => {
+        if (gmailStatus === 'Not Connected') {
+          window.location.href = '/api/integrations/gmail/auth'
+        } else {
+          handleDisconnectGmail()
+        }
+      }
     },
     {
       name: 'Telegram',
@@ -183,7 +211,7 @@ await fetch('${baseUrl}/api/webhooks/intake', {
                     : 'bg-blue-600 text-white ring-blue-600 hover:bg-blue-500'
                 }`}
               >
-                {integration.status === 'Available' ? 'Configure' : integration.status === 'Connected' ? 'Manage' : 'Connect'}
+                {integration.status === 'Available' ? 'Configure' : integration.status === 'Connected' ? 'Manage' : integration.status === 'Active' ? (loading && integration.name === 'Gmail' ? 'Disconnecting...' : 'Disconnect') : 'Connect'}
               </button>
             </div>
           </div>

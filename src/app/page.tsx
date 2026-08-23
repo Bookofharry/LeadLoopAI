@@ -160,7 +160,7 @@ export default function LandingPage() {
                     <p><span className="font-medium text-zinc-900 dark:text-zinc-100">Company:</span> Sunrise Guesthouse</p>
                   </div>
                   <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed italic bg-zinc-50 dark:bg-zinc-950 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
-                    "We're looking to install solar for our 20-room guesthouse in Lekki. Budget is around ₦8m–₦10m and we'd like it completed next month."
+                    &quot;We&apos;re looking to install solar for our 20-room guesthouse in Lekki. Budget is around ₦8m–₦10m and we&apos;d like it completed next month.&quot;
                   </p>
                 </div>
                 <div className="text-center text-xs font-semibold text-zinc-500 flex items-center justify-center gap-1">
@@ -294,7 +294,7 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-16">
               <h2 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-4xl mb-4">
-                Your leads are already talking.<br className="hidden sm:block" /> Your CRM just isn't listening.
+                Your leads are already talking.<br className="hidden sm:block" /> Your CRM just isn&apos;t listening.
               </h2>
               <p className="text-lg text-zinc-600 dark:text-zinc-400">
                 Customer information arrives through emails, forms and conversations, but sales teams still spend valuable time manually copying that information into CRM systems.
@@ -349,12 +349,12 @@ export default function LandingPage() {
               </div>
               <div className="bg-zinc-50 dark:bg-zinc-950 rounded-xl p-4 border border-zinc-100 dark:border-zinc-800">
                 <div className="flex items-center gap-3 text-sm text-zinc-400 line-through decoration-zinc-300 dark:decoration-zinc-700 mb-2">
-                  "Hey I need solar, I have 10m..."
+                  &quot;Hey I need solar, I have 10m...&quot;
                 </div>
                 <div className="flex justify-center my-2 text-blue-500"><ArrowDown className="h-4 w-4" /></div>
                 <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                  <div className="bg-white dark:bg-zinc-900 p-2 rounded border border-zinc-200 dark:border-zinc-800"><span className="text-blue-500">"service":</span> "Solar"</div>
-                  <div className="bg-white dark:bg-zinc-900 p-2 rounded border border-zinc-200 dark:border-zinc-800"><span className="text-blue-500">"budget":</span> 10000000</div>
+                  <div className="bg-white dark:bg-zinc-900 p-2 rounded border border-zinc-200 dark:border-zinc-800"><span className="text-blue-500">&quot;service&quot;:</span> &quot;Solar&quot;</div>
+                  <div className="bg-white dark:bg-zinc-900 p-2 rounded border border-zinc-200 dark:border-zinc-800"><span className="text-blue-500">&quot;budget&quot;:</span> 10000000</div>
                 </div>
               </div>
             </div>
@@ -558,10 +558,10 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-16">
               <h2 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-4xl mb-4">
-                AI when it's confident. Humans when it matters.
+                AI when it&apos;s confident. Humans when it matters.
               </h2>
               <p className="text-lg text-zinc-600 dark:text-zinc-400">
-                LeadLoop doesn't blindly write AI-generated information into your CRM. Low-confidence enquiries are sent to a Review Queue before automation continues.
+                LeadLoop doesn&apos;t blindly write AI-generated information into your CRM. Low-confidence enquiries are sent to a Review Queue before automation continues.
               </p>
             </div>
 

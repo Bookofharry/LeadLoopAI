@@ -55,6 +55,7 @@ export function Sidebar({ className, pendingReviewCount = 0 }: { className?: str
               <Link
                 key={item.name}
                 href={item.href}
+                suppressHydrationWarning
                 className={cn(
                   isActive
                     ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800/50 dark:text-zinc-50'
