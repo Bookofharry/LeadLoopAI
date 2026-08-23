@@ -9,13 +9,13 @@ export default async function TasksPage() {
     .from('tasks')
     .select(`
       *,
-      lead:leads(id, full_name, company),
-      assigned_to:profiles!tasks_assigned_to_fkey(full_name)
+      lead:leads!tasks_lead_company_fk(id, name, company),
+      assigned_to:profiles!tasks_assigned_to_company_fk(name)
     `)
     .order('due_at', { ascending: true })
 
-  const pendingTasks = tasks?.filter(t => t.status === 'PENDING') || []
-  const completedTasks = tasks?.filter(t => t.status === 'COMPLETED') || []
+  const pendingTasks = tasks?.filter(t => t.status === 'Pending') || []
+  const completedTasks = tasks?.filter(t => t.status === 'Completed') || []
 
   return (
     <div className="space-y-6 max-w-4xl">

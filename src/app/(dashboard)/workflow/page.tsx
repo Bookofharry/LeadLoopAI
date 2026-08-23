@@ -11,11 +11,8 @@ export default function WorkflowPage() {
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 flex items-center gap-2 mt-1">
             Watch LeadLoop work.
           </h1>
-          <p className="text-zinc-500 text-sm mt-1 max-w-2xl">
-            Customer conversations enter from different channels. LeadLoop understands them, validates the result, updates the CRM, assigns the right salesperson, and creates the next action automatically.
-          </p>
-          <p className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 mt-2">
-            AI-powered • Human-supervised • Fully observable
+          <p className="text-zinc-500 text-sm mt-1 max-w-2xl font-medium">
+            See how an enquiry becomes an actionable CRM opportunity.
           </p>
         </div>
 

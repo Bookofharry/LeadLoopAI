@@ -7,6 +7,7 @@ import { generateIntegrationKey } from "./actions"
 export default function IntegrationsPage() {
   const [showWebFormGuide, setShowWebFormGuide] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [keyCopied, setKeyCopied] = useState(false)
   const [apiKey, setApiKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [baseUrl, setBaseUrl] = useState("https://your-leadloop-domain.com")
@@ -75,6 +76,14 @@ await fetch('${baseUrl}/api/webhooks/intake', {
     navigator.clipboard.writeText(snippet)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleCopyKey = () => {
+    if (apiKey) {
+      navigator.clipboard.writeText(apiKey)
+      setKeyCopied(true)
+      setTimeout(() => setKeyCopied(false), 2000)
+    }
   }
 
   const handleGenerateKey = async () => {
@@ -210,14 +219,23 @@ await fetch('${baseUrl}/api/webhooks/intake', {
                   <p className="text-xs text-green-800 dark:text-green-400 mb-2">
                     Please copy this key immediately. For security reasons, we will not show it to you again.
                   </p>
-                  <code className="block bg-white dark:bg-zinc-950 px-3 py-2 rounded text-sm text-zinc-900 dark:text-zinc-100 border border-green-200 dark:border-green-900/50 break-all select-all">
-                    {apiKey}
-                  </code>
+                  <div className="relative group">
+                    <code className="block bg-white dark:bg-zinc-950 px-3 py-3 pr-12 rounded text-sm text-zinc-900 dark:text-zinc-100 border border-green-200 dark:border-green-900/50 break-all select-all">
+                      {apiKey}
+                    </code>
+                    <button 
+                      onClick={handleCopyKey}
+                      className="absolute right-2 top-2 p-1.5 rounded-md bg-zinc-100 dark:bg-zinc-900 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                      title="Copy API Key"
+                    >
+                      {keyCopied ? <Check className="h-4 w-4 text-green-600 dark:text-green-400" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
               )}
 
               <p className="mt-1 text-sm text-blue-800 dark:text-blue-400/80 mb-6">
-                You can easily connect your own custom frontend forms to LeadLoop AI. Send the entire raw customer message to our webhook, and Mistral AI will automatically structure and qualify it.
+                You can easily connect your own custom frontend forms to LeadLoop AI. Send the entire raw customer message to our webhook, and LeadLoop AI will automatically structure and qualify it.
               </p>
               
               <div className="relative group">

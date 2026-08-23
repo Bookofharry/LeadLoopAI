@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   CheckCircle2,
@@ -19,35 +19,83 @@ import {
   Database,
   UserPlus,
   CalendarCheck,
-  Check,
   PauseCircle,
   LucideIcon
 } from "lucide-react"
 
-type Scenario = "SUCCESS" | "REVIEW" | "DUPLICATE"
-type NodeId =
-  | "intake"
-  | "ai"
-  | "extraction"
-  | "validation"
-  | "confidence"
-  | "duplicate_check"
-  | "crm"
-  | "assignment"
-  | "followup"
-  | "completed"
-  | "paused"
-  | null
+type Scenario = "SUCCESS" | "REVIEW" | "REVIEW_APPROVED" | "DUPLICATE"
+type NodeId = string
 
-// The sequence of nodes for each scenario
 const SCENARIOS = {
-  SUCCESS: ["intake", "ai", "extraction", "validation", "confidence", "duplicate_check", "crm", "assignment", "followup", "completed"],
-  REVIEW: ["intake", "ai", "extraction", "validation", "confidence", "paused"],
-  DUPLICATE: ["intake", "ai", "extraction", "validation", "confidence", "duplicate_check", "crm", "completed"]
+  SUCCESS: ["intake-web", "ai", "extraction", "validation", "confidence", "duplicate_check", "crm", "assignment", "followup", "completed"],
+  REVIEW: ["intake-manual", "ai", "extraction", "validation", "confidence", "review"],
+  REVIEW_APPROVED: ["intake-manual", "ai", "extraction", "validation", "confidence", "review", "crm", "assignment", "followup", "completed"],
+  DUPLICATE: ["intake-web", "ai", "extraction", "validation", "confidence", "duplicate_check", "crm", "completed"]
 }
 
 const TIMINGS = {
-  nodeDelay: 800, // ms between nodes
+  nodeDelay: 800,
+}
+
+const ALL_EDGES = [
+  ['intake-web', 'ai'],
+  ['intake-manual', 'ai'],
+  ['intake-gmail', 'ai'],
+  ['ai', 'extraction'],
+  ['extraction', 'validation'],
+  ['validation', 'confidence'],
+  ['confidence', 'duplicate_check'],
+  ['confidence', 'review'],
+  ['duplicate_check', 'crm'],
+  ['review', 'crm'], // Resume flow edge
+  ['crm', 'assignment'],
+  ['assignment', 'followup'],
+  ['followup', 'completed'],
+  ['crm', 'completed'], // DUPLICATE scenario short-circuit
+]
+
+type NodeDef = {
+  icon: LucideIcon;
+  title: string;
+  subtitle?: string;
+  muted?: boolean;
+  isAnchor?: boolean;
+  isWarning?: boolean;
+  isSuccess?: boolean;
+}
+
+const NODE_DEF: Record<string, NodeDef> = {
+  'intake-manual': { icon: MessageSquare, title: "Manual Intake" },
+  'intake-web': { icon: Globe, title: "Website Form" },
+  'intake-gmail': { icon: Mail, title: "Gmail", muted: true },
+  
+  'ai': { icon: Cpu, title: "LeadLoop AI", subtitle: "Mistral-powered", isAnchor: true },
+  'extraction': { icon: FileCheck, title: "Extract" },
+  'validation': { icon: ShieldCheck, title: "Validate" },
+  
+  'confidence': { icon: Split, title: "Confidence" },
+  'review': { icon: PauseCircle, title: "Human Review", subtitle: "Paused", isWarning: true },
+  
+  'duplicate_check': { icon: Search, title: "Duplicate Check" },
+  'crm': { icon: Database, title: "CRM Sync" },
+  'assignment': { icon: UserPlus, title: "Assign Rep" },
+  'followup': { icon: CalendarCheck, title: "Follow-up Task" },
+  'completed': { icon: CheckCircle2, title: "Done", isSuccess: true },
+}
+
+const WHAT_HAPPENS: Record<string, string> = {
+  'intake-web': "Receiving webhook payload from a submitted website form.",
+  'intake-manual': "User pasted unstructured customer notes into the dashboard.",
+  'ai': "LeadLoop AI analyzes the unstructured text to detect intents and identify required fields.",
+  'extraction': "Extracting actionable fields like Name, Requested Service, and Estimated Budget.",
+  'validation': "Validating extracted data against required CRM schema fields.",
+  'confidence': "Calculating AI confidence score to determine if human review is needed before executing.",
+  'review': "Confidence below threshold. Automation paused securely awaiting human confirmation.",
+  'duplicate_check': "Checking CRM database against extracted email/phone for existing client records.",
+  'crm': "Updating CRM database. Interaction appended to existing lead, or new record created.",
+  'assignment': "Deterministic rules engine applies routing (e.g., Solar inquiries assign to Sarah).",
+  'followup': "Creating a pending task assigned to the rep to guarantee follow-up.",
+  'completed': "Workflow sequence successfully completed and trace logged.",
 }
 
 export default function WorkflowClient() {
@@ -55,11 +103,81 @@ export default function WorkflowClient() {
   const [activeNodes, setActiveNodes] = useState<NodeId[]>([])
   const [isPlaying, setIsPlaying] = useState(false)
   const [isFinished, setIsFinished] = useState(false)
-
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Layout Measurement State
+  const [paths, setPaths] = useState<Record<string, string>>({})
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const nodeRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  const setNodeRef = (id: string) => (el: HTMLDivElement | null) => {
+    nodeRefs.current[id] = el
+  }
+
+  const calculatePaths = useCallback(() => {
+    if (!canvasRef.current) return {}
+    const canvasRect = canvasRef.current.getBoundingClientRect()
+    const p: Record<string, string> = {}
+    
+    ALL_EDGES.forEach(([startId, endId]) => {
+      const el1 = nodeRefs.current[startId]
+      const el2 = nodeRefs.current[endId]
+      if (!el1 || !el2) return
+
+      const r1 = el1.getBoundingClientRect()
+      const r2 = el2.getBoundingClientRect()
+      
+      const c1 = { x: r1.x - canvasRect.x + r1.width/2, y: r1.y - canvasRect.y + r1.height/2 }
+      const c2 = { x: r2.x - canvasRect.x + r2.width/2, y: r2.y - canvasRect.y + r2.height/2 }
+      
+      const isHorizontal = Math.abs(c2.x - c1.x) > Math.abs(c2.y - c1.y)
+      
+      if (isHorizontal) {
+         const start = { x: r1.right - canvasRect.x, y: c1.y }
+         const end = { x: r2.left - canvasRect.x, y: c2.y }
+         
+         if (end.x < start.x) {
+           p[`${startId}_to_${endId}`] = `M ${start.x} ${start.y} C ${start.x + 40} ${start.y}, ${end.x - 40} ${end.y}, ${end.x} ${end.y}`
+         } else {
+           const dx = end.x - start.x
+           p[`${startId}_to_${endId}`] = `M ${start.x} ${start.y} C ${start.x + dx * 0.45} ${start.y}, ${end.x - dx * 0.45} ${end.y}, ${end.x} ${end.y}`
+         }
+      } else {
+         const start = { x: c1.x, y: c1.y < c2.y ? r1.bottom - canvasRect.y : r1.top - canvasRect.y }
+         const end = { x: c2.x, y: c1.y < c2.y ? r2.top - canvasRect.y : r2.bottom - canvasRect.y }
+         
+         const dy = end.y - start.y
+         p[`${startId}_to_${endId}`] = `M ${start.x} ${start.y} C ${start.x} ${start.y + dy * 0.45}, ${end.x} ${end.y - dy * 0.45}, ${end.x} ${end.y}`
+      }
+    })
+    
+    return p
+  }, [])
+
+  useEffect(() => {
+    if (!canvasRef.current) return
+    let frameId: number
+    
+    const updatePaths = () => {
+      cancelAnimationFrame(frameId)
+      frameId = requestAnimationFrame(() => {
+        setPaths(calculatePaths())
+      })
+    }
+
+    const observer = new ResizeObserver(updatePaths)
+    observer.observe(canvasRef.current)
+    window.addEventListener('resize', updatePaths)
+    updatePaths()
+    
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', updatePaths)
+      cancelAnimationFrame(frameId)
+    }
+  }, [calculatePaths, scenario])
+
   const playSequence = (selectedScenario: Scenario = scenario) => {
-    // Reset state
     if (timerRef.current) clearTimeout(timerRef.current)
     setActiveNodes([])
     setIsPlaying(true)
@@ -71,7 +189,7 @@ export default function WorkflowClient() {
 
     const nextStep = () => {
       if (step < sequence.length) {
-        setActiveNodes(prev => [...prev, sequence[step] as NodeId])
+        setActiveNodes(prev => [...prev, sequence[step]])
         step++
         timerRef.current = setTimeout(nextStep, TIMINGS.nodeDelay)
       } else {
@@ -80,11 +198,9 @@ export default function WorkflowClient() {
       }
     }
 
-    // Start first step slightly delayed for UX
     timerRef.current = setTimeout(nextStep, 300)
   }
 
-  // Auto-play on mount
   useEffect(() => {
     playSequence("SUCCESS")
     return () => {
@@ -99,422 +215,267 @@ export default function WorkflowClient() {
 
   const isNodeActive = (nodeId: NodeId) => activeNodes.includes(nodeId)
   const isNodeCurrent = (nodeId: NodeId) => activeNodes[activeNodes.length - 1] === nodeId
+  
+  const activePaths = activeNodes.slice(1).map((node, i) => `${activeNodes[i]}_to_${node}`);
+  
+  const currentNode = activeNodes[activeNodes.length - 1]
+  const currentDetails = isPlaying && currentNode ? WHAT_HAPPENS[currentNode] : (isFinished ? "Workflow execution finalized." : "Select a scenario and click Play.")
 
   return (
-    <div className="flex flex-col h-full bg-zinc-50 dark:bg-zinc-950/20">
-      {/* Controls Bar */}
-      <div className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shrink-0 z-10 flex flex-col sm:flex-row justify-between items-center gap-4">
-        <div className="flex bg-zinc-100 dark:bg-zinc-800/50 p-1 rounded-lg">
+    <div className="flex flex-col h-full bg-zinc-50 dark:bg-zinc-950/20 font-sans">
+      
+      {/* Scenario Controls (Compact Segmented) */}
+      <div className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-6 py-4 shrink-0 z-20 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="flex bg-zinc-100 dark:bg-zinc-800/50 p-1 rounded-lg overflow-x-auto">
           <button
             onClick={() => handleScenarioChange("SUCCESS")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${scenario === "SUCCESS"
-              ? "bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-zinc-50"
-              : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-              }`}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${scenario === "SUCCESS" ? "bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-zinc-50" : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"}`}
           >
-            <CheckCircle2 className={`h-4 w-4 ${scenario === "SUCCESS" ? "text-green-500" : ""}`} />
+            <span className={`h-2 w-2 shrink-0 rounded-full ${scenario === "SUCCESS" ? "bg-green-500" : "bg-transparent"}`}></span>
             Successful Lead
           </button>
           <button
             onClick={() => handleScenarioChange("REVIEW")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${scenario === "REVIEW"
-              ? "bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-zinc-50"
-              : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-              }`}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${scenario === "REVIEW" ? "bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-zinc-50" : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"}`}
           >
-            <AlertTriangle className={`h-4 w-4 ${scenario === "REVIEW" ? "text-amber-500" : ""}`} />
-            Human Review
+             <span className={`h-2 w-2 shrink-0 rounded-full ${scenario === "REVIEW" ? "bg-amber-500" : "bg-transparent"}`}></span>
+            Human Review (Paused)
+          </button>
+          <button
+            onClick={() => handleScenarioChange("REVIEW_APPROVED")}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${scenario === "REVIEW_APPROVED" ? "bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-zinc-50" : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"}`}
+          >
+             <span className={`h-2 w-2 shrink-0 rounded-full ${scenario === "REVIEW_APPROVED" ? "bg-emerald-500" : "bg-transparent"}`}></span>
+            Human Review (Resumed)
           </button>
           <button
             onClick={() => handleScenarioChange("DUPLICATE")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${scenario === "DUPLICATE"
-              ? "bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-zinc-50"
-              : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-              }`}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${scenario === "DUPLICATE" ? "bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-zinc-50" : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"}`}
           >
-            <RefreshCw className={`h-4 w-4 ${scenario === "DUPLICATE" ? "text-blue-500" : ""}`} />
+             <span className={`h-2 w-2 shrink-0 rounded-full ${scenario === "DUPLICATE" ? "bg-blue-500" : "bg-transparent"}`}></span>
             Duplicate Lead
           </button>
         </div>
 
-        <div className="flex gap-2">
-          <button
-            onClick={() => playSequence(scenario)}
-            className="flex items-center gap-2 px-3 py-2 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-lg text-sm font-semibold hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
-          >
-            {isPlaying ? <RotateCcw className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            {isPlaying ? "Restart" : "Replay"}
-          </button>
-        </div>
+        <button
+          onClick={() => playSequence(scenario)}
+          className="flex items-center gap-2 px-4 py-1.5 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-md text-xs font-semibold hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
+        >
+          {isPlaying ? <RotateCcw className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+          {isPlaying ? "Restart" : "Play"}
+        </button>
       </div>
 
       {/* Main Canvas Area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 relative flex justify-center">
+      <div className="flex-1 overflow-x-hidden relative flex flex-col justify-center min-h-[400px]">
+        <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#27272a_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none opacity-50"></div>
+        
+        {/* Mobile Layout (Vertical Timeline) */}
+        <div className="md:hidden flex flex-col p-6 max-w-sm mx-auto relative z-10 w-full">
+           {SCENARIOS[scenario].map((nodeId, idx) => {
+             const def = NODE_DEF[nodeId];
+             return (
+               <div key={nodeId}>
+                 <MobileNode 
+                   def={def} 
+                   isActive={isNodeActive(nodeId)} 
+                   isCurrent={isNodeCurrent(nodeId)} 
+                 />
+                 {idx < SCENARIOS[scenario].length - 1 && (
+                   <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-800 mx-auto my-1"></div>
+                 )}
+               </div>
+             )
+           })}
+        </div>
 
-        {/* Background Grid Pattern */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
-
-        <div className="w-full max-w-4xl flex flex-col lg:flex-row gap-8 lg:gap-16 relative z-10 py-10 items-center lg:items-stretch">
-
-          {/* Column 1: Intake */}
-          <div className="flex flex-col justify-center gap-4 w-64 shrink-0">
-            <WorkflowNode
-              id="intake-manual"
-              icon={MessageSquare}
-              title="Manual Intake"
-              subtitle="Paste email, WhatsApp, SMS, or notes"
-              isActive={isNodeActive("intake") && scenario === "REVIEW"}
-              isCurrent={isNodeCurrent("intake") && scenario === "REVIEW"}
-            />
-            <WorkflowNode
-              id="intake-webhook"
-              icon={Globe}
-              title="Website Form"
-              subtitle="Secure webhook integration"
-              isActive={isNodeActive("intake") && scenario !== "REVIEW"}
-              isCurrent={isNodeCurrent("intake") && scenario !== "REVIEW"}
-            />
-            <WorkflowNode
-              id="intake-gmail"
-              icon={Mail}
-              title="Gmail"
-              subtitle="Coming Soon"
-              isActive={false}
-              isCurrent={false}
-              muted
-            />
-          </div>
-
-          {/* Connectors (CSS based for layout simplicity, SVG for visual) */}
-          <div className="hidden lg:flex w-12 shrink-0 relative items-center justify-center">
-            {/* The animated path from intake to AI */}
-            {isNodeActive("ai") && (
-              <motion.div
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: "100%", opacity: 1 }}
-                className="h-0.5 bg-blue-500 absolute left-0 shadow-[0_0_8px_rgba(59,130,246,0.5)]"
-                style={{ top: scenario === "REVIEW" ? "20%" : "50%" }}
-              />
-            )}
-          </div>
-
-          {/* Column 2: Processing Core */}
-          <div className="flex flex-col items-center gap-8 w-72 shrink-0">
-
-            {/* LeadLoop AI Node - The Centerpiece */}
-            <div className="relative">
-              <WorkflowNode
-                id="ai"
-                icon={Cpu}
-                title="LeadLoop AI"
-                subtitle="Mistral-powered intelligence"
-                isActive={isNodeActive("ai")}
-                isCurrent={isNodeCurrent("ai")}
-                className={isNodeActive("ai") ? "border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.3)] dark:shadow-[0_0_30px_rgba(59,130,246,0.15)] ring-1 ring-blue-500 bg-blue-50/50 dark:bg-blue-900/10" : ""}
-                iconColor={isNodeActive("ai") ? "text-blue-500" : ""}
-              />
-              <AnimatePresence>
-                {isNodeCurrent("ai") && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/50 px-2 py-1 rounded-full shadow-sm"
-                  >
-                    Understanding conversation...
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div className="h-8 w-0.5 bg-zinc-200 dark:bg-zinc-800 relative">
-              {isNodeActive("extraction") && <motion.div initial={{ height: 0 }} animate={{ height: "100%" }} className="w-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />}
-            </div>
-
-            <WorkflowNode
-              id="extraction"
-              icon={FileCheck}
-              title="AI Extraction"
-              subtitle={
-                scenario === "REVIEW" ? "Missing fields detected" :
-                  "Structured fields extracted"
-              }
-              isActive={isNodeActive("extraction")}
-              isCurrent={isNodeCurrent("extraction")}
-              content={
-                isNodeActive("extraction") ? (
-                  <div className="mt-3 text-xs space-y-1 p-2 bg-zinc-50 dark:bg-zinc-950 rounded border border-zinc-100 dark:border-zinc-800">
-                    {scenario === "REVIEW" ? (
-                      <>
-                        <div className="text-amber-600 dark:text-amber-400 font-medium">Name: Unknown</div>
-                        <div className="text-amber-600 dark:text-amber-400 font-medium">Service: Unknown</div>
-                        <div className="text-amber-600 dark:text-amber-400 font-medium">Budget: Unknown</div>
-                      </>
-                    ) : (
-                      <>
-                        <div><span className="text-zinc-400">Name:</span> David Okafor</div>
-                        <div><span className="text-zinc-400">Service:</span> Solar Install</div>
-                        <div><span className="text-zinc-400">Budget:</span> ₦8m–₦10m</div>
-                      </>
+        {/* Desktop Layout (Fluid Grid SVG) */}
+        <div className="hidden md:flex flex-1 relative w-full px-4 lg:px-8 overflow-hidden items-center justify-center">
+          <div ref={canvasRef} className="relative w-full h-full max-w-7xl mx-auto flex items-center justify-center">
+            
+            {/* Dynamic SVG Overlay */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
+              <defs>
+                <linearGradient id="glow" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="rgba(59,130,246,0)" />
+                  <stop offset="50%" stopColor="rgba(59,130,246,0.8)" />
+                  <stop offset="100%" stopColor="rgba(59,130,246,1)" />
+                </linearGradient>
+              </defs>
+              
+              {Object.entries(paths).map(([pathId, d]) => {
+                const isActive = activePaths.includes(pathId);
+                return (
+                  <g key={pathId}>
+                    {/* Base muted path */}
+                    <path d={d} fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800/70" strokeWidth="1.5" />
+                    
+                    {/* Highlight path (active steps) */}
+                    {isActive && (
+                      <path d={d} fill="none" stroke="currentColor" className="text-blue-500/20 dark:text-blue-500/30" strokeWidth="2.5" />
                     )}
-                  </div>
-                ) : undefined
-              }
-            />
 
-            <div className="h-8 w-0.5 bg-zinc-200 dark:bg-zinc-800 relative">
-              {isNodeActive("validation") && <motion.div initial={{ height: 0 }} animate={{ height: "100%" }} className="w-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />}
+                    {/* Packet Animation */}
+                    {isActive && (
+                       <motion.path
+                         d={d}
+                         fill="none"
+                         stroke="url(#glow)"
+                         strokeWidth="3"
+                         strokeLinecap="round"
+                         strokeDasharray="10 1000"
+                         initial={{ pathLength: 0, pathOffset: 1 }}
+                         animate={{ pathLength: 0.01, pathOffset: 0 }}
+                         transition={{ duration: 0.6, ease: "easeInOut" }}
+                       />
+                    )}
+                  </g>
+                )
+              })}
+            </svg>
+
+            {/* Fluid Grid Zones */}
+            <div className="relative z-10 w-full grid grid-cols-2 lg:grid-cols-4 grid-rows-2 lg:grid-rows-1 grid-flow-col lg:grid-flow-row gap-6 lg:gap-8 xl:gap-12 items-stretch py-12">
+              
+              {/* Zone 1: Intake */}
+              <div className="flex flex-col gap-6 justify-center">
+                <h5 className="text-[10px] font-bold tracking-widest text-zinc-400 dark:text-zinc-500 uppercase text-center mb-1">01 Intake</h5>
+                <ArchitectureNode id="intake-manual" def={NODE_DEF['intake-manual']} isActive={isNodeActive('intake-manual')} isCurrent={isNodeCurrent('intake-manual')} isMuted={NODE_DEF['intake-manual'].muted || !SCENARIOS[scenario].includes('intake-manual')} setRef={setNodeRef} />
+                <ArchitectureNode id="intake-web" def={NODE_DEF['intake-web']} isActive={isNodeActive('intake-web')} isCurrent={isNodeCurrent('intake-web')} isMuted={!SCENARIOS[scenario].includes('intake-web')} setRef={setNodeRef} />
+                <ArchitectureNode id="intake-gmail" def={NODE_DEF['intake-gmail']} isActive={isNodeActive('intake-gmail')} isCurrent={isNodeCurrent('intake-gmail')} isMuted={true} setRef={setNodeRef} />
+              </div>
+
+              {/* Zone 2: Intelligence */}
+              <div className="flex flex-col gap-6 justify-center">
+                <h5 className="text-[10px] font-bold tracking-widest text-zinc-400 dark:text-zinc-500 uppercase text-center mb-1">02 Intelligence</h5>
+                <ArchitectureNode id="ai" def={NODE_DEF['ai']} isActive={isNodeActive('ai')} isCurrent={isNodeCurrent('ai')} setRef={setNodeRef} />
+                <ArchitectureNode id="extraction" def={NODE_DEF['extraction']} isActive={isNodeActive('extraction')} isCurrent={isNodeCurrent('extraction')} setRef={setNodeRef} customLabel={scenario === 'REVIEW' ? "Conversation → ?" : "Conversation → CRM"} />
+                <ArchitectureNode id="validation" def={NODE_DEF['validation']} isActive={isNodeActive('validation')} isCurrent={isNodeCurrent('validation')} setRef={setNodeRef} customLabel="Schema + Types" />
+              </div>
+
+              {/* Zone 3: Decision */}
+              <div className="flex flex-col gap-6 justify-center">
+                <h5 className="text-[10px] font-bold tracking-widest text-zinc-400 dark:text-zinc-500 uppercase text-center mb-1">03 Decision</h5>
+                <ArchitectureNode id="confidence" def={NODE_DEF['confidence']} isActive={isNodeActive('confidence')} isCurrent={isNodeCurrent('confidence')} setRef={setNodeRef} customLabel={scenario === "SUCCESS" ? "94%" : scenario === "DUPLICATE" ? "92%" : "30%"} />
+                <ArchitectureNode id="review" def={NODE_DEF['review']} isActive={isNodeActive('review')} isCurrent={isNodeCurrent('review')} setRef={setNodeRef} />
+              </div>
+
+              {/* Zone 4: Action */}
+              <div className="flex flex-col gap-4 justify-center">
+                <h5 className="text-[10px] font-bold tracking-widest text-zinc-400 dark:text-zinc-500 uppercase text-center mb-1">04 Action</h5>
+                <ArchitectureNode id="duplicate_check" def={NODE_DEF['duplicate_check']} isActive={isNodeActive('duplicate_check')} isCurrent={isNodeCurrent('duplicate_check')} setRef={setNodeRef} />
+                <ArchitectureNode id="crm" def={NODE_DEF['crm']} isActive={isNodeActive('crm')} isCurrent={isNodeCurrent('crm')} setRef={setNodeRef} customLabel={scenario === "DUPLICATE" ? "Append interaction" : "Insert new lead"} />
+                <ArchitectureNode id="assignment" def={NODE_DEF['assignment']} isActive={isNodeActive('assignment')} isCurrent={isNodeCurrent('assignment')} setRef={setNodeRef} />
+                <ArchitectureNode id="followup" def={NODE_DEF['followup']} isActive={isNodeActive('followup')} isCurrent={isNodeCurrent('followup')} setRef={setNodeRef} />
+                <ArchitectureNode id="completed" def={NODE_DEF['completed']} isActive={isNodeActive('completed')} isCurrent={isNodeCurrent('completed')} setRef={setNodeRef} />
+              </div>
+              
             </div>
-
-            <WorkflowNode
-              id="validation"
-              icon={ShieldCheck}
-              title="Validation"
-              subtitle="Schema & type checking"
-              isActive={isNodeActive("validation")}
-              isCurrent={isNodeCurrent("validation")}
-            />
-
-            <div className="h-8 w-0.5 bg-zinc-200 dark:bg-zinc-800 relative">
-              {isNodeActive("confidence") && <motion.div initial={{ height: 0 }} animate={{ height: "100%" }} className="w-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />}
-            </div>
-
-            {/* Confidence Branching */}
-            <div className="relative">
-              <WorkflowNode
-                id="confidence"
-                icon={Split}
-                title="Confidence Check"
-                subtitle={
-                  !isNodeActive("confidence") ? "Evaluate AI certainty" :
-                    scenario === "SUCCESS" ? "Score: 94%" :
-                      scenario === "DUPLICATE" ? "Score: 92%" :
-                        "Score: 30%"
-                }
-                isActive={isNodeActive("confidence")}
-                isCurrent={isNodeCurrent("confidence")}
-                className={isNodeActive("confidence") && scenario === "REVIEW" ? "border-amber-500" : ""}
-                iconColor={isNodeActive("confidence") && scenario === "REVIEW" ? "text-amber-500" : ""}
-              />
-            </div>
-          </div>
-
-          <div className="hidden lg:flex w-12 shrink-0 relative items-center justify-center">
-            {isNodeActive("paused") && (
-              <motion.div
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: "100%", opacity: 1 }}
-                className="h-0.5 bg-amber-500 absolute left-0 shadow-[0_0_8px_rgba(245,158,11,0.5)]"
-                style={{ top: "85%" }}
-              />
-            )}
-            {isNodeActive("duplicate_check") && (
-              <motion.div
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: "100%", opacity: 1 }}
-                className="h-0.5 bg-blue-500 absolute left-0 shadow-[0_0_8px_rgba(59,130,246,0.5)]"
-                style={{ top: "85%" }} // approximate line up
-              />
-            )}
-          </div>
-
-          {/* Column 3: Outputs & Decisions */}
-          <div className="flex flex-col items-center gap-8 w-72 shrink-0 justify-end h-full">
-
-            {scenario === "REVIEW" ? (
-              <AnimatePresence>
-                {isNodeActive("paused") && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9, x: 20 }}
-                    animate={{ opacity: 1, scale: 1, x: 0 }}
-                    className="w-full mt-auto"
-                  >
-                    <WorkflowNode
-                      id="paused"
-                      icon={PauseCircle}
-                      title="Human Review"
-                      subtitle="Automation safely paused"
-                      isActive={true}
-                      isCurrent={true}
-                      className="border-amber-500 bg-amber-50/50 dark:bg-amber-900/10 shadow-[0_0_20px_rgba(245,158,11,0.2)]"
-                      iconColor="text-amber-500"
-                      content={
-                        <div className="mt-3 text-xs p-2 bg-amber-100 dark:bg-amber-900/30 rounded text-amber-800 dark:text-amber-200">
-                          <strong>Awaiting Human Action:</strong>
-                          <div className="flex gap-2 mt-2">
-                            <span className="px-2 py-1 bg-white dark:bg-zinc-800 rounded shadow-sm">Correct</span>
-                            <span className="px-2 py-1 bg-zinc-900 text-white rounded shadow-sm">Approve</span>
-                          </div>
-                        </div>
-                      }
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            ) : (
-              <>
-                <WorkflowNode
-                  id="duplicate_check"
-                  icon={Search}
-                  title="Duplicate Detection"
-                  subtitle={
-                    !isNodeActive("duplicate_check") ? "Verify email & phone" :
-                      scenario === "DUPLICATE" ? "Existing Lead Found" :
-                        "No Existing Match"
-                  }
-                  isActive={isNodeActive("duplicate_check")}
-                  isCurrent={isNodeCurrent("duplicate_check")}
-                />
-
-                <div className="h-8 w-0.5 bg-zinc-200 dark:bg-zinc-800 relative">
-                  {isNodeActive("crm") && <motion.div initial={{ height: 0 }} animate={{ height: "100%" }} className="w-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />}
-                </div>
-
-                <WorkflowNode
-                  id="crm"
-                  icon={Database}
-                  title={scenario === "DUPLICATE" ? "Existing Lead Updated" : "CRM Lead Created"}
-                  subtitle={scenario === "DUPLICATE" ? "Interaction appended" : "David Okafor inserted"}
-                  isActive={isNodeActive("crm")}
-                  isCurrent={isNodeCurrent("crm")}
-                  content={
-                    isNodeActive("crm") ? (
-                      <div className="mt-3 flex items-center justify-between text-xs p-2 bg-zinc-50 dark:bg-zinc-950 rounded border border-zinc-100 dark:border-zinc-800">
-                        <div>
-                          <div className="font-semibold text-zinc-900 dark:text-zinc-100">David Okafor</div>
-                          <div className="text-zinc-500">Sunrise Guesthouse</div>
-                        </div>
-                        <span className="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded text-[10px] font-bold">HOT</span>
-                      </div>
-                    ) : undefined
-                  }
-                />
-
-                {scenario === "SUCCESS" && (
-                  <>
-                    <div className="h-8 w-0.5 bg-zinc-200 dark:bg-zinc-800 relative">
-                      {isNodeActive("assignment") && <motion.div initial={{ height: 0 }} animate={{ height: "100%" }} className="w-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />}
-                    </div>
-
-                    <WorkflowNode
-                      id="assignment"
-                      icon={UserPlus}
-                      title="Sales Rep Assignment"
-                      subtitle="Rule: Solar → Sarah Johnson"
-                      isActive={isNodeActive("assignment")}
-                      isCurrent={isNodeCurrent("assignment")}
-                    />
-
-                    <div className="h-8 w-0.5 bg-zinc-200 dark:bg-zinc-800 relative">
-                      {isNodeActive("followup") && <motion.div initial={{ height: 0 }} animate={{ height: "100%" }} className="w-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />}
-                    </div>
-
-                    <WorkflowNode
-                      id="followup"
-                      icon={CalendarCheck}
-                      title="Follow-Up Task"
-                      subtitle="Call David regarding solar"
-                      isActive={isNodeActive("followup")}
-                      isCurrent={isNodeCurrent("followup")}
-                    />
-                  </>
-                )}
-
-                <div className="h-8 w-0.5 bg-zinc-200 dark:bg-zinc-800 relative">
-                  {isNodeActive("completed") && <motion.div initial={{ height: 0 }} animate={{ height: "100%" }} className="w-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />}
-                </div>
-
-                <WorkflowNode
-                  id="completed"
-                  icon={Check}
-                  title="Workflow Completed"
-                  subtitle="Automation trace logged"
-                  isActive={isNodeActive("completed")}
-                  isCurrent={isNodeCurrent("completed")}
-                  className={isNodeActive("completed") ? "border-green-500 bg-green-50/50 dark:bg-green-900/10 shadow-[0_0_20px_rgba(34,197,94,0.2)]" : ""}
-                  iconColor={isNodeActive("completed") ? "text-green-500" : ""}
-                />
-              </>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Side Panel Explanation */}
-      <div className="border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shrink-0 flex items-center justify-between">
-        <div className="flex-1 max-w-2xl">
-          <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></span>
-            Current Step
-          </h3>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 min-h-[40px]">
-            {!isPlaying && !isFinished && "Select a scenario and click Play."}
-            {isFinished && "Workflow completed."}
-            {isPlaying && isNodeCurrent("intake") && "Receiving unstructured customer conversation from intake channel."}
-            {isPlaying && isNodeCurrent("ai") && "LeadLoop AI is analyzing the text using Mistral."}
-            {isPlaying && isNodeCurrent("extraction") && "Extracting actionable fields (Name, Service, Budget)."}
-            {isPlaying && isNodeCurrent("validation") && "Validating extracted data against the CRM schema."}
-            {isPlaying && isNodeCurrent("confidence") && "Checking AI confidence score to determine safe routing."}
-            {isPlaying && isNodeCurrent("paused") && "Confidence too low. Safely paused for Human Review."}
-            {isPlaying && isNodeCurrent("duplicate_check") && "Checking CRM for existing customers by email/phone."}
-            {isPlaying && isNodeCurrent("crm") && scenario === "DUPLICATE" ? "Appending interaction to existing customer record." : ""}
-            {isPlaying && isNodeCurrent("crm") && scenario === "SUCCESS" ? "Creating new Lead record in Supabase CRM." : ""}
-            {isPlaying && isNodeCurrent("assignment") && "Applying deterministic business rules to assign a salesperson."}
-            {isPlaying && isNodeCurrent("followup") && "Creating a pending follow-up task for the assigned rep."}
-            {isPlaying && isNodeCurrent("completed") && "Workflow successfully finished and logged."}
-          </p>
+      {/* Contextual Panel */}
+      <div className="border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shrink-0 z-20 flex justify-center shadow-[0_-10px_20px_rgba(0,0,0,0.02)]">
+        <div className="w-full max-w-2xl bg-zinc-50 dark:bg-zinc-950 rounded-lg p-3 text-center border border-zinc-100 dark:border-zinc-800 flex flex-col justify-center items-center h-[72px]">
+           <h4 className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1">What's Happening</h4>
+           <p className="text-[13px] text-zinc-700 dark:text-zinc-300 font-medium h-5 flex items-center justify-center">
+             {currentDetails}
+           </p>
         </div>
       </div>
     </div>
   )
 }
 
-function WorkflowNode({
-  icon: Icon,
-  title,
-  subtitle,
-  isActive,
-  isCurrent,
-  content,
-  muted = false,
-  className = "",
-  iconColor = "text-zinc-500"
-}: {
-  id: string,
-  icon: LucideIcon,
-  title: string,
-  subtitle: string,
-  isActive: boolean,
-  isCurrent: boolean,
-  content?: React.ReactNode,
-  muted?: boolean,
-  className?: string,
-  iconColor?: string
-}) {
+function ArchitectureNode({ id, def, isActive, isCurrent, isMuted, customLabel, setRef }: any) {
+  const Icon = def.icon;
+  return (
+    <div
+      ref={setRef(id)}
+      className={`w-full max-w-[180px] mx-auto flex flex-col justify-center relative p-3 rounded-xl border bg-white dark:bg-zinc-900 transition-all duration-300 ${
+        isActive 
+          ? def.isWarning 
+             ? "border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.12)] ring-1 ring-amber-400/30" 
+             : def.isAnchor
+                ? "border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.15)] ring-1 ring-blue-500/30"
+                : def.isSuccess
+                   ? "border-green-500"
+                   : "border-zinc-300 dark:border-zinc-600 shadow-sm ring-1 ring-zinc-300/30 dark:ring-zinc-600/30" 
+          : "border-zinc-200 dark:border-zinc-800 opacity-60 grayscale-[50%]"
+      } ${isMuted ? "opacity-25 grayscale" : ""}`}
+    >
+       <div className="flex items-center">
+         <motion.div 
+           animate={{ scale: isCurrent ? 1.15 : 1 }}
+           className={`p-1.5 rounded-lg mr-2.5 shrink-0 transition-colors ${
+              isActive 
+                ? def.isWarning ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600' :
+                  def.isAnchor ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600' :
+                  def.isSuccess ? 'bg-green-100 dark:bg-green-900/40 text-green-600' :
+                  'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
+                : 'bg-zinc-50 dark:bg-zinc-900 text-zinc-400 dark:text-zinc-600'
+           }`}
+         >
+           <Icon className="h-4 w-4" />
+         </motion.div>
+         <div className="flex-1 min-w-0">
+            <div className={`text-[12px] font-semibold truncate transition-colors ${isActive ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500'}`}>
+              {def.title}
+            </div>
+            {(def.subtitle || customLabel) && (
+              <div className={`text-[10px] truncate mt-0.5 transition-colors ${isActive ? 'text-zinc-500 dark:text-zinc-400' : 'text-zinc-400 dark:text-zinc-600'}`}>
+                {customLabel || def.subtitle}
+              </div>
+            )}
+         </div>
+       </div>
+       
+       {def.isAnchor && isActive && (
+         <span className="absolute -top-1 -right-1 flex h-3 w-3">
+           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+           <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+         </span>
+       )}
+    </div>
+  )
+}
+
+function MobileNode({ def, isActive, isCurrent }: any) {
+  const Icon = def.icon;
   return (
     <motion.div
       initial={false}
       animate={{
-        scale: isCurrent ? 1.05 : 1,
-        opacity: muted ? 0.4 : isActive ? 1 : 0.6
+        scale: isCurrent ? 1.02 : 1,
+        opacity: isActive ? 1 : 0.4
       }}
-      className={`w-full rounded-xl border bg-white dark:bg-zinc-900 p-4 relative transition-colors duration-500 ${isActive && !className ? "border-zinc-300 dark:border-zinc-700 shadow-sm" : "border-zinc-200 dark:border-zinc-800"
-        } ${className}`}
+      className={`flex items-center p-3 rounded-lg border bg-white dark:bg-zinc-900 transition-colors ${
+        isActive 
+          ? def.isWarning ? "border-amber-400" : def.isAnchor ? "border-blue-500" : def.isSuccess ? "border-green-500" : "border-zinc-300 dark:border-zinc-600 shadow-sm"
+          : "border-zinc-200 dark:border-zinc-800"
+      }`}
     >
-      <div className="flex items-start gap-3">
-        <div className={`p-2 rounded-lg ${isActive ? 'bg-zinc-100 dark:bg-zinc-800' : 'bg-zinc-50 dark:bg-zinc-900'}`}>
-          <Icon className={`h-5 w-5 ${isActive && !iconColor.includes('text-zinc') ? iconColor : 'text-zinc-500 dark:text-zinc-400'}`} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h4 className={`text-sm font-semibold truncate ${isActive ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 dark:text-zinc-500'}`}>
-            {title}
-          </h4>
-          <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-0.5 leading-snug">
-            {subtitle}
-          </p>
-        </div>
-      </div>
-      {content}
+       <div className={`p-2 rounded-lg mr-3 shrink-0 ${
+          isActive 
+            ? def.isWarning ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600' :
+              def.isAnchor ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600' :
+              def.isSuccess ? 'bg-green-100 dark:bg-green-900/40 text-green-600' :
+              'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
+            : 'bg-zinc-50 dark:bg-zinc-900 text-zinc-400 dark:text-zinc-600'
+       }`}>
+         <Icon className="h-4 w-4" />
+       </div>
+       <div className="flex-1 min-w-0">
+          <div className={`text-sm font-semibold truncate ${isActive ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500'}`}>
+            {def.title}
+          </div>
+          {def.subtitle && (
+            <div className={`text-xs truncate mt-0.5 ${isActive ? 'text-zinc-500' : 'text-zinc-400 dark:text-zinc-600'}`}>
+              {def.subtitle}
+            </div>
+          )}
+       </div>
     </motion.div>
   )
 }

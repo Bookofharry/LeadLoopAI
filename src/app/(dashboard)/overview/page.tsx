@@ -10,70 +10,43 @@ import {
   Clock
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
-import { format, isToday } from "date-fns"
+import { format, isToday, startOfDay } from "date-fns"
 import Link from "next/link"
 
 export default async function Dashboard() {
   const supabase = await createClient()
 
-  // 1. Total Leads
-  const { count: totalLeads } = await supabase
-    .from('leads')
-    .select('*', { count: 'exact', head: true })
+  const todayStart = startOfDay(new Date()).toISOString()
 
-  // 2. New Leads
-  const { count: newLeads } = await supabase
-    .from('leads')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'NEW')
+  const [
+    { count: totalLeads },
+    { count: newLeads },
+    { count: hotLeads },
+    { count: followUpsDue },
+    { count: needsReview },
+    { data: automationsTodayData },
+    { data: recentLeads },
+    { data: recentRuns }
+  ] = await Promise.all([
+    supabase.from('leads').select('id', { count: 'exact', head: true }),
+    supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status', 'NEW'),
+    supabase.from('leads').select('id', { count: 'exact', head: true }).eq('priority', 'HOT'),
+    supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('status', 'PENDING'),
+    supabase.from('review_queue').select('id', { count: 'exact', head: true }).eq('status', 'Pending'),
+    supabase.from('automation_runs').select('status').gte('created_at', todayStart),
+    supabase.from('leads')
+      .select('id, name, company, source, lead_score, priority, status, created_at, assigned_to:profiles!leads_assigned_to_company_fk(name)')
+      .order('created_at', { ascending: false })
+      .limit(5),
+    supabase.from('automation_runs')
+      .select('id, trigger_type, source, status, current_step, started_at, lead:leads!automation_runs_lead_company_fk(name)')
+      .order('started_at', { ascending: false })
+      .limit(5)
+  ]);
 
-  // 3. Hot Leads
-  const { count: hotLeads } = await supabase
-    .from('leads')
-    .select('*', { count: 'exact', head: true })
-    .eq('priority', 'HOT')
-
-  // 4. Follow-Ups Due
-  const { count: followUpsDue } = await supabase
-    .from('tasks')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'PENDING')
-
-  // 5. Needs Review
-  const { count: needsReview } = await supabase
-    .from('review_queue')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'PENDING')
-
-  // 6. Automations Today
-  // Get all automation runs, then filter in memory for today as a simple approach
-  const { data: allRuns } = await supabase
-    .from('automation_runs')
-    .select('created_at, status')
-  
-  const automationsToday = allRuns?.filter(run => run.created_at && isToday(new Date(run.created_at))) || []
+  const automationsToday = automationsTodayData || []
   const successfulAutomations = automationsToday.filter(run => run.status === 'SUCCESS').length
   const totalAutomationsToday = automationsToday.length
-
-  // Recent Leads
-  const { data: recentLeads } = await supabase
-    .from('leads')
-    .select(`
-      id, full_name, company, source, lead_score, priority, status, created_at,
-      assigned_to:profiles!leads_assigned_to_fkey(full_name)
-    `)
-    .order('created_at', { ascending: false })
-    .limit(5)
-
-  // Recent Automation Activity
-  const { data: recentRuns } = await supabase
-    .from('automation_runs')
-    .select(`
-      id, trigger_type, source, status, current_step, started_at,
-      lead:leads(full_name)
-    `)
-    .order('started_at', { ascending: false })
-    .limit(5)
 
   const metrics = [
     { name: 'Total Leads', value: totalLeads || 0, icon: Users, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' },
@@ -156,8 +129,8 @@ export default async function Dashboard() {
                   {recentLeads.map((lead) => (
                     <tr key={lead.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                       <td className="whitespace-nowrap py-3 pl-6 pr-3 text-sm">
-                        <div className="font-medium text-zinc-900 dark:text-zinc-100">{lead.full_name}</div>
-                        <div className="text-zinc-500">{lead.company}</div>
+                        <div className="font-medium text-zinc-900 dark:text-zinc-100">{lead.name || 'Unknown'}</div>
+                        <div className="text-zinc-500">{lead.company || '-'}</div>
                       </td>
                       <td className="whitespace-nowrap px-3 py-3 text-sm">
                         <div className="flex items-center gap-2">
@@ -172,7 +145,7 @@ export default async function Dashboard() {
                       </td>
                       <td className="whitespace-nowrap px-3 py-3 text-sm text-zinc-500">
                         {/* @ts-ignore */}
-                        {lead.assigned_to?.full_name || 'Unassigned'}
+                        {lead.assigned_to?.name || 'Unassigned'}
                       </td>
                     </tr>
                   ))}
@@ -214,7 +187,7 @@ export default async function Dashboard() {
                           <div className="flex items-center justify-between">
                             <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                               {/* @ts-ignore */}
-                              {run.lead?.full_name ? `Processed: ${run.lead.full_name}` : `Source: ${run.source}`}
+                              {run.lead?.name ? `Processed: ${run.lead.name}` : `Source: ${run.source}`}
                             </h3>
                             <p className="text-xs text-zinc-500">
                               {run.started_at ? format(new Date(run.started_at), 'HH:mm') : ''}

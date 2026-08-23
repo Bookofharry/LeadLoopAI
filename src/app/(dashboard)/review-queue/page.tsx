@@ -1,11 +1,11 @@
-import { getPendingReviews } from "./actions"
+import { getReviews } from "./actions"
 import ReviewQueueClient from "./ReviewQueueClient"
 import { AlertCircle } from "lucide-react"
 
 export const dynamic = "force-dynamic"
 
 export default async function ReviewQueuePage() {
-  const { success, data, error } = await getPendingReviews()
+  const { success, data, error } = await getReviews()
 
   if (!success) {
     return (
@@ -14,6 +14,8 @@ export default async function ReviewQueuePage() {
       </div>
     )
   }
+
+  const pendingCount = data?.filter((r: any) => r.status === "Pending").length || 0;
 
   return (
     <div className="space-y-6">
@@ -28,7 +30,7 @@ export default async function ReviewQueuePage() {
           </p>
         </div>
         <div className="text-sm font-semibold text-zinc-500 bg-zinc-100 dark:bg-zinc-900 px-3 py-1 rounded-full">
-          {data?.length || 0} Pending
+          {pendingCount} Pending
         </div>
       </div>
 

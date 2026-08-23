@@ -4,6 +4,7 @@ import { processCustomerEnquiry } from "@/lib/services/ai";
 export type IntakeSource = "MANUAL" | "WEBSITE_FORM" | "WEBHOOK" | "GMAIL" | "WHATSAPP";
 
 export interface IncomingLeadPayload {
+  companyId: string;
   source: IntakeSource;
   rawContent: string;
   structuredData?: {
@@ -29,6 +30,7 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
       const { data: existingInteraction } = await supabase
         .from("interactions")
         .select("id, lead_id")
+        .eq("company_id", payload.companyId)
         .eq("source", payload.source)
         .eq("external_id", payload.externalId)
         .limit(1);
@@ -47,6 +49,7 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
     const { data: interaction, error: intError } = await supabase
       .from("interactions")
       .insert({ 
+        company_id: payload.companyId,
         source: payload.source, 
         raw_content: payload.rawContent,
         external_id: payload.externalId || null
@@ -61,6 +64,7 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
     const { data: run, error: runError } = await supabase
       .from("automation_runs")
       .insert({
+        company_id: payload.companyId,
         interaction_id: interactionId,
         trigger_type: "intake",
         source: payload.source,
@@ -74,8 +78,9 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
     automationRunId = run.id;
 
     // Helper to log steps
-    const logStep = async (stepName: string, status: string, output: any = null, error: any = null) => {
+    const logStep = async (stepName: string, status: string, output: unknown = null, error: unknown = null) => {
       await supabase.from("automation_steps").insert({
+        company_id: payload.companyId,
         automation_run_id: automationRunId,
         step_name: stepName,
         status,
@@ -101,9 +106,10 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
       }
 
       await logStep("AI Extraction", "Success", aiResult);
-    } catch (e: any) {
-      await logStep("AI Extraction", "Failed", null, e.message);
-      throw e;
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      await logStep("AI Extraction", "Failed", null, msg);
+      throw error;
     }
 
     // 4. Update Interaction Summary
@@ -116,6 +122,7 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
       await logStep("Confidence Check", "Needs Review", { confidence: aiResult.confidence, missing: aiResult.missing_fields });
       
       const { data: reviewRecord } = await supabase.from("review_queue").insert({
+        company_id: payload.companyId,
         interaction_id: interactionId,
         extracted_data: aiResult,
         confidence: aiResult.confidence,
@@ -131,13 +138,67 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
         status: "NEEDS_REVIEW",
         reviewId: reviewRecord?.id,
         automationRunId: automationRunId,
+        interactionId: interactionId,
         aiResult
       };
     }
     
     await logStep("Confidence Check", "Passed", { confidence: aiResult.confidence });
+    
+    return await continueLeadProcessing(
+      payload.companyId,
+      payload.source,
+      aiResult,
+      interactionId!,
+      automationRunId!,
+      false
+    );
 
-    // 6. Duplicate Detection (Simplified: exact email match)
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[processIncomingLead] Failed:", msg);
+    if (automationRunId) {
+      const supabase = createAdminClient();
+      await supabase.from("automation_runs").update({ 
+        status: "Failed",
+        error_message: msg,
+        completed_at: new Date().toISOString()
+      }).eq("id", automationRunId);
+    }
+    throw error;
+  }
+}
+
+export async function continueLeadProcessing(
+  companyId: string,
+  source: IntakeSource,
+  aiResult: Record<string, unknown>,
+  interactionId: string,
+  automationRunId: string,
+  isHumanApproved: boolean = false
+) {
+  const supabase = createAdminClient();
+  
+  const logStep = async (stepName: string, status: string, output: unknown = null, error: unknown = null) => {
+    await supabase.from("automation_steps").insert({
+      company_id: companyId,
+      automation_run_id: automationRunId,
+      step_name: stepName,
+      status,
+      output,
+      error: error ? String(error) : null,
+    });
+    await supabase.from("automation_runs")
+      .update({ current_step: stepName })
+      .eq("id", automationRunId);
+  };
+
+  if (isHumanApproved) {
+    await logStep("Human Review Approved", "Success", { correctedData: aiResult });
+  }
+
+  try {
+    // 6. Duplicate Detection (Simplified: exact email match within same company)
     let leadId = null;
     let existingLead = null;
     
@@ -145,6 +206,7 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
        const { data: leads } = await supabase
          .from("leads")
          .select("id")
+         .eq("company_id", companyId)
          .eq("email", aiResult.email)
          .limit(1);
          
@@ -154,7 +216,25 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
     }
 
     // 7. Deterministic Assignment Logic
-    const { data: reps } = await supabase.from("profiles").select("id, name").limit(1);
+    // Find a SALES_REP in the company first
+    let { data: reps } = await supabase
+      .from("profiles")
+      .select("id, name")
+      .eq("company_id", companyId)
+      .eq("role", "SALES_REP")
+      .limit(1);
+
+    // If no sales rep, fallback to an ADMIN
+    if (!reps || reps.length === 0) {
+      const { data: admins } = await supabase
+        .from("profiles")
+        .select("id, name")
+        .eq("company_id", companyId)
+        .eq("role", "ADMIN")
+        .limit(1);
+      reps = admins;
+    }
+
     const assignedRepId = (reps && reps.length > 0) ? reps[0].id : null;
     const assignedRepName = (reps && reps.length > 0) ? reps[0].name : "Unassigned";
 
@@ -171,6 +251,7 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
       await logStep("CRM Update", "Success", { action: "Updated", lead_id: leadId });
     } else {
       const { data: newLead, error: leadError } = await supabase.from("leads").insert({
+        company_id: companyId,
         name: aiResult.name || "Unknown",
         company: aiResult.company,
         email: aiResult.email,
@@ -184,7 +265,7 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
         lead_score: aiResult.lead_score,
         priority: aiResult.priority,
         status: "New",
-        source: payload.source,
+        source: source,
         assigned_to: assignedRepId,
         ai_summary: aiResult.summary,
         ai_confidence: aiResult.confidence,
@@ -202,6 +283,7 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
     // 8. Follow-up Task Creation
     if (aiResult.recommended_action) {
       await supabase.from("tasks").insert({
+        company_id: companyId,
         lead_id: leadId,
         assigned_to: assignedRepId,
         title: aiResult.recommended_action,
@@ -213,10 +295,12 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
 
     // 9. Notification Generation
     if (assignedRepId) {
+       const isDuplicate = existingLead ? "Existing" : "New";
        await supabase.from("notifications").insert({
+         company_id: companyId,
          user_id: assignedRepId,
          lead_id: leadId,
-         title: `New ${aiResult.priority} Lead`,
+         title: `${isDuplicate} ${aiResult.priority} Lead${isHumanApproved ? ' (Human Approved)' : ''}`,
          message: `${aiResult.name} from ${aiResult.company || 'a company'} was assigned to you.`
        });
        await logStep("Notification", "Success", { assigned_to: assignedRepId });
@@ -235,19 +319,19 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
       automationRunId: automationRunId,
       priority: aiResult.priority,
       assignedRep: assignedRepName,
+      isDuplicate: !!existingLead,
       aiResult
     };
 
-  } catch (error: any) {
-    console.error("processIncomingLead error:", error);
-    if (automationRunId) {
-      const supabase = createAdminClient();
-      await supabase.from("automation_runs").update({ 
-        status: "Failed",
-        error_message: error.message,
-        completed_at: new Date().toISOString()
-      }).eq("id", automationRunId);
-    }
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("continueLeadProcessing error:", error);
+    await supabase.from("automation_runs").update({ 
+      status: "Failed",
+      error_message: msg,
+      completed_at: new Date().toISOString()
+    }).eq("id", automationRunId);
     throw error;
   }
 }
+

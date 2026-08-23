@@ -16,13 +16,13 @@ export async function POST(req: Request) {
     const supabase = createAdminClient();
     const { data: integration } = await supabase
       .from("integrations")
-      .select("id, status")
+      .select("id, status, company_id")
       .eq("api_key_hash", tokenHash)
       .eq("status", "Active")
       .single();
 
-    if (!integration) {
-      return NextResponse.json({ error: "Unauthorized: Invalid integration key" }, { status: 403 });
+    if (!integration || !integration.company_id) {
+      return NextResponse.json({ error: "Unauthorized: Invalid integration key or missing tenant context" }, { status: 403 });
     }
 
     // 2. Parse Payload
@@ -39,6 +39,7 @@ export async function POST(req: Request) {
 
     // 3. Process via Core Engine
     const result = await processIncomingLead({
+      companyId: integration.company_id,
       source,
       rawContent,
       structuredData: body.structuredData,
@@ -48,8 +49,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json(result);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Internal Server Error";
     console.error("Webhook route error:", error);
-    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

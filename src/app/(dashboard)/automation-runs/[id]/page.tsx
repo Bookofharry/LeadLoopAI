@@ -3,17 +3,18 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
 
-export default async function AutomationRunDetailPage({ params }: { params: { id: string } }) {
+export default async function AutomationRunDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = await createClient()
 
   const { data: run, error } = await supabase
     .from("automation_runs")
     .select(`
       *,
-      leads (id, name, company),
-      interactions (id, raw_content, source)
+      leads!automation_runs_lead_company_fk(id, name, company),
+      interactions!automation_runs_interaction_company_fk(id, raw_content, source)
     `)
-    .eq("id", params.id)
+    .eq("id", id)
     .single()
 
   if (error || !run) {
@@ -23,7 +24,7 @@ export default async function AutomationRunDetailPage({ params }: { params: { id
   const { data: steps } = await supabase
     .from("automation_steps")
     .select("*")
-    .eq("automation_run_id", params.id)
+    .eq("automation_run_id", id)
     .order("started_at", { ascending: true })
 
   const getStatusIcon = (status: string) => {

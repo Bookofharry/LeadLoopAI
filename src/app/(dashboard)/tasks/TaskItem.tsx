@@ -9,13 +9,13 @@ export function TaskItem({ task }: { task: any }) {
   const [isPending, startTransition] = useTransition()
 
   const handleComplete = () => {
-    if (task.status === 'COMPLETED') return;
+    if (task.status === 'Completed') return;
     startTransition(async () => {
       await markTaskCompleted(task.id)
     })
   }
 
-  const isCompleted = task.status === 'COMPLETED'
+  const isCompleted = task.status === 'Completed'
   
   return (
     <div className={`p-4 flex items-start gap-3 border-b border-zinc-100 dark:border-zinc-800 last:border-0 ${isCompleted ? 'opacity-60 bg-zinc-50 dark:bg-zinc-900/50' : 'bg-white dark:bg-zinc-900'}`}>
@@ -50,7 +50,7 @@ export function TaskItem({ task }: { task: any }) {
         </p>
         {task.lead && (
           <p className="text-xs text-blue-600 dark:text-blue-400 mt-1.5 font-medium hover:underline cursor-pointer">
-            <a href={`/leads/${task.lead.id}`}>{task.lead.full_name} ({task.lead.company})</a>
+            <a href={`/leads/${task.lead.id}`}>{task.lead.name} ({task.lead.company})</a>
           </p>
         )}
       </div>

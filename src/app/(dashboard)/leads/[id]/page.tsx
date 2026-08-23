@@ -3,7 +3,8 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
 
-export default async function LeadDetailPage({ params }: { params: { id: string } }) {
+export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = await createClient()
   
   // 1. Fetch Lead & Joined Profile
@@ -11,12 +12,12 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
     .from("leads")
     .select(`
       *,
-      profiles:assigned_to (
+      profiles!leads_assigned_to_company_fk (
         id,
         name
       )
     `)
-    .eq("id", params.id)
+    .eq("id", id)
     .single()
 
   if (leadError || !lead) {
@@ -27,7 +28,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
   const { data: interactions } = await supabase
     .from("interactions")
     .select("*")
-    .eq("lead_id", params.id)
+    .eq("lead_id", id)
     .order("created_at", { ascending: false })
 
   // 3. Format Currency

@@ -46,6 +46,22 @@ export default function SignupPage() {
         </div>
 
         <div>
+          <label htmlFor="companyName" className="block text-sm font-medium leading-6 text-zinc-900 dark:text-zinc-100">
+            Company / Workspace Name
+          </label>
+          <div className="mt-2">
+            <input 
+              id="companyName" 
+              name="companyName" 
+              type="text" 
+              required 
+              placeholder="e.g. Acme Corp"
+              className="block w-full rounded-lg border-0 py-2.5 px-3 text-zinc-900 shadow-sm ring-1 ring-inset ring-zinc-300 placeholder:text-zinc-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-800 transition-shadow bg-zinc-50/50" 
+            />
+          </div>
+        </div>
+
+        <div>
           <label htmlFor="email" className="block text-sm font-medium leading-6 text-zinc-900 dark:text-zinc-100">
             Email address
           </label>

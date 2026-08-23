@@ -17,9 +17,20 @@ export async function generateIntegrationKey(name: string, type: string) {
     return { success: false, error: "Unauthorized" }
   }
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("company_id")
+    .eq("id", userId)
+    .single()
+
+  if (!profile?.company_id) {
+    return { success: false, error: "Company not found for user" }
+  }
+
   const { data, error } = await supabase
     .from("integrations")
     .insert({
+      company_id: profile.company_id,
       name,
       type,
       api_key_hash: tokenHash,

@@ -9,7 +9,7 @@ export async function markTaskCompleted(taskId: string) {
   const { error } = await supabase
     .from('tasks')
     .update({ 
-      status: 'COMPLETED',
+      status: 'Completed',
       completed_at: new Date().toISOString()
     })
     .eq('id', taskId)

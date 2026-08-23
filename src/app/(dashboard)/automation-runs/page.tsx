@@ -10,7 +10,7 @@ export default async function AutomationRunsPage() {
     .from('automation_runs')
     .select(`
       *,
-      lead:leads(full_name)
+      lead:leads!automation_runs_lead_company_fk(name)
     `)
     .order('started_at', { ascending: false })
 
@@ -63,7 +63,7 @@ export default async function AutomationRunsPage() {
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-zinc-900 dark:text-zinc-100">
                       {/* @ts-ignore */}
-                      {run.lead?.full_name || '-'}
+                      {run.lead?.name || '-'}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm">
                       <div className="flex items-center gap-1.5">

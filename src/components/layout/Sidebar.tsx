@@ -15,23 +15,23 @@ import {
   Blocks
 } from "lucide-react"
 
-const navigation = [
-  { name: 'Overview', href: '/overview', icon: LayoutDashboard },
-  { name: 'Pipeline', href: '/pipeline', icon: KanbanSquare },
-  { name: 'Leads', href: '/leads', icon: Users },
-  { name: 'Review Queue', href: '/review-queue', icon: Inbox, badge: 2 },
-  { name: 'Tasks', href: '/tasks', icon: CheckSquare },
-  { name: 'Automation Runs', href: '/automation-runs', icon: Activity },
-  { name: 'Workflow', href: '/workflow', icon: GitMerge },
-  { name: 'Integrations', href: '/integrations', icon: Blocks },
-  { name: 'Settings', href: '/settings', icon: Settings },
-]
-
-export function Sidebar() {
+export function Sidebar({ className, pendingReviewCount = 0 }: { className?: string, pendingReviewCount?: number }) {
   const pathname = usePathname()
 
+  const navigation = [
+    { name: 'Overview', href: '/overview', icon: LayoutDashboard },
+    { name: 'Pipeline', href: '/pipeline', icon: KanbanSquare },
+    { name: 'Leads', href: '/leads', icon: Users },
+    { name: 'Review Queue', href: '/review-queue', icon: Inbox, badge: pendingReviewCount },
+    { name: 'Tasks', href: '/tasks', icon: CheckSquare },
+    { name: 'Automation Runs', href: '/automation-runs', icon: Activity },
+    { name: 'Workflow', href: '/workflow', icon: GitMerge },
+    { name: 'Integrations', href: '/integrations', icon: Blocks },
+    { name: 'Settings', href: '/settings', icon: Settings },
+  ]
+
   return (
-    <div className="flex h-full w-64 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+    <div className={cn("flex h-full w-64 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950", className)}>
       <div className="flex h-16 items-center px-6 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center gap-2 font-bold text-xl tracking-tight text-zinc-900 dark:text-zinc-50">
           <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
@@ -72,7 +72,7 @@ export function Sidebar() {
                   />
                   {item.name}
                 </div>
-                {item.badge ? (
+                {item.badge && item.badge > 0 ? (
                   <span className="ml-auto inline-block py-0.5 px-2 text-xs font-semibold rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
                     {item.badge}
                   </span>
