@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     // Fetch all active Gmail integrations
     const { data: integrations, error } = await supabase
       .from('integrations')
-      .select('company_id, updated_at')
+      .select('company_id, created_at')
       .eq('type', 'GMAIL')
       .eq('status', 'Active');
 
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
     // Run sync for each company sequentially to avoid overwhelming resources.
     // In a massive multi-tenant scale, we might batch these or push to a worker queue.
     for (const integration of integrations) {
-      const result = await syncGmailInbox(integration.company_id, integration.updated_at);
+      const result = await syncGmailInbox(integration.company_id, integration.created_at);
       results.push({ companyId: integration.company_id, ...result });
     }
 
