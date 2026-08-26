@@ -14,18 +14,20 @@ const columns = [
 export default async function PipelinePage() {
   const supabase = await createClient()
 
-  const { data: leads } = await supabase
-    .from('leads')
-    .select(`
-      id, full_name, company, lead_score, priority, budget_min, budget_max, status,
-      assigned_to:profiles!leads_assigned_to_fkey(full_name)
-    `)
-    .order('created_at', { ascending: false })
-
-  const leadsByStatus = columns.reduce((acc, col) => {
-    acc[col.value] = leads?.filter(l => l.status === col.value) || []
-    return acc
-  }, {} as Record<string, any[]>)
+  // Fetch leads per status using parallel queries (more efficient)
+  const leadsByStatus = await Promise.all(
+    columns.map(async (col) => {
+      const { data } = await supabase
+        .from('leads')
+        .select(`
+          id, full_name, company, lead_score, priority, budget_min, budget_max, status,
+          assigned_to:profiles!leads_assigned_to_fkey(full_name)
+        `)
+        .eq('status', col.value)
+        .order('created_at', { ascending: false })
+      return { [col.value]: data || [] }
+    })
+  ).then(results => Object.assign({}, ...results))
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] overflow-hidden">

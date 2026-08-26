@@ -1,18 +1,39 @@
-import { Activity, CheckCircle2, XCircle, Clock, AlertCircle } from "lucide-react"
+import { Activity, CheckCircle2, XCircle, Clock, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { format } from "date-fns"
 import Link from "next/link"
 
-export default async function AutomationRunsPage() {
-  const supabase = await createClient()
+const PAGE_SIZE = 25
 
-  const { data: runs } = await supabase
-    .from('automation_runs')
-    .select(`
-      *,
-      lead:leads!automation_runs_lead_company_fk(name)
-    `)
-    .order('started_at', { ascending: false })
+export default async function AutomationRunsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const supabase = await createClient()
+  const params = await searchParams
+  const page = Math.max(1, parseInt(String(params?.page || '1')))
+  const offset = (page - 1) * PAGE_SIZE
+
+  // Fetch runs and total count
+  const [
+    { data: runs },
+    { count: totalCount }
+  ] = await Promise.all([
+    supabase
+      .from('automation_runs')
+      .select(`
+        *,
+        lead:leads!automation_runs_lead_company_fk(name)
+      `)
+      .order('started_at', { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1),
+    supabase
+      .from('automation_runs')
+      .select('id', { count: 'exact', head: true })
+  ])
+
+  const totalPages = Math.ceil((totalCount || 0) / PAGE_SIZE)
 
   return (
     <div className="space-y-6">
@@ -97,6 +118,39 @@ export default async function AutomationRunsPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="flex items-center justify-between border-t border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="text-sm text-zinc-500 dark:text-zinc-400">
+            Page {page} of {totalPages || 1} • Showing {runs?.length || 0} of {totalCount || 0} runs
+          </div>
+          <div className="flex gap-2">
+            <a
+              href={`/automation-runs?page=${Math.max(1, page - 1)}`}
+              className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${
+                page === 1
+                  ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed dark:bg-zinc-800/50 dark:text-zinc-600'
+                  : 'bg-white text-zinc-900 shadow-sm ring-1 ring-inset ring-zinc-300 hover:bg-zinc-50 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700 dark:hover:bg-zinc-800'
+              }`}
+              aria-disabled={page === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </a>
+            <a
+              href={`/automation-runs?page=${Math.min(totalPages, page + 1)}`}
+              className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${
+                page >= totalPages
+                  ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed dark:bg-zinc-800/50 dark:text-zinc-600'
+                  : 'bg-white text-zinc-900 shadow-sm ring-1 ring-inset ring-zinc-300 hover:bg-zinc-50 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700 dark:hover:bg-zinc-800'
+              }`}
+              aria-disabled={page >= totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </a>
+          </div>
         </div>
       </div>
     </div>

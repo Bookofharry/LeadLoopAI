@@ -1,22 +1,42 @@
-import { Users, Filter, Plus, Download } from "lucide-react"
+import { Users, Filter, Plus, Download, ChevronLeft, ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { format } from "date-fns"
 
-export default async function LeadsPage() {
-  const supabase = await createClient()
+const PAGE_SIZE = 25
 
-  // Fetch leads and their assigned representative
-  const { data: leads, error } = await supabase
-    .from('leads')
-    .select(`
-      id, name, email, phone, company, status, priority, lead_score, created_at,
-      assigned_to:profiles!leads_assigned_to_company_fk(name)
-    `)
-    .order('created_at', { ascending: false })
+export default async function LeadsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const supabase = await createClient()
+  const params = await searchParams
+  const page = Math.max(1, parseInt(String(params?.page || '1')))
+  const offset = (page - 1) * PAGE_SIZE
+
+  // Fetch leads and total count
+  const [
+    { data: leads, error },
+    { count: totalCount }
+  ] = await Promise.all([
+    supabase
+      .from('leads')
+      .select(`
+        id, name, email, phone, company, status, priority, lead_score, created_at,
+        assigned_to:profiles!leads_assigned_to_company_fk(name)
+      `)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1),
+    supabase
+      .from('leads')
+      .select('id', { count: 'exact', head: true })
+  ])
 
   if (error) {
     console.error("Error fetching leads:", error)
   }
+
+  const totalPages = Math.ceil((totalCount || 0) / PAGE_SIZE)
 
   return (
     <div className="space-y-6">
@@ -109,6 +129,39 @@ export default async function LeadsPage() {
               )}
             </tbody>
           </table>
+        </div>
+        
+        {/* Pagination */}
+        <div className="flex items-center justify-between border-t border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="text-sm text-zinc-500 dark:text-zinc-400">
+            Page {page} of {totalPages || 1} • Showing {leads?.length || 0} of {totalCount || 0} leads
+          </div>
+          <div className="flex gap-2">
+            <a
+              href={`/leads?page=${Math.max(1, page - 1)}`}
+              className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${
+                page === 1
+                  ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed dark:bg-zinc-800/50 dark:text-zinc-600'
+                  : 'bg-white text-zinc-900 shadow-sm ring-1 ring-inset ring-zinc-300 hover:bg-zinc-50 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700 dark:hover:bg-zinc-800'
+              }`}
+              aria-disabled={page === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </a>
+            <a
+              href={`/leads?page=${Math.min(totalPages, page + 1)}`}
+              className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${
+                page >= totalPages
+                  ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed dark:bg-zinc-800/50 dark:text-zinc-600'
+                  : 'bg-white text-zinc-900 shadow-sm ring-1 ring-inset ring-zinc-300 hover:bg-zinc-50 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700 dark:hover:bg-zinc-800'
+              }`}
+              aria-disabled={page >= totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </a>
+          </div>
         </div>
       </div>
     </div>
