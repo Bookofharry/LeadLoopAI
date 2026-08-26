@@ -84,7 +84,7 @@ export default function LandingPage() {
                 transition={{ delay: 0.1 }}
                 className="text-5xl font-extrabold tracking-tight sm:text-7xl mb-6 bg-clip-text text-transparent bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-900 dark:from-white dark:via-zinc-200 dark:to-white"
               >
-                Stop losing leads in your inbox.
+                Every enquiry deserves a next action.
               </motion.h1>
               
               <motion.p 
@@ -93,7 +93,7 @@ export default function LandingPage() {
                 transition={{ delay: 0.2 }}
                 className="text-xl font-medium text-zinc-700 dark:text-zinc-300 mb-6"
               >
-                Turn every customer conversation into an actionable sales pipeline.
+                LeadLoop AI closes the gap between customer inquiry and action.
               </motion.p>
               
               <motion.p 
@@ -102,7 +102,7 @@ export default function LandingPage() {
                 transition={{ delay: 0.3 }}
                 className="text-lg text-zinc-600 dark:text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed"
               >
-                LeadLoop AI captures incoming enquiries, understands customer intent, updates your CRM, qualifies opportunities, assigns sales reps and creates follow-ups automatically.
+                From emails, website forms, and chat—LeadLoop's AI extracts customer information, qualifies leads, checks for duplicates, and routes them to the right person. All without manual work.
               </motion.p>
               
               <motion.div 
@@ -294,10 +294,10 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-16">
               <h2 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-4xl mb-4">
-                Your leads are already talking.<br className="hidden sm:block" /> Your CRM just isn&apos;t listening.
+                The problem: Fragmented lead management.
               </h2>
               <p className="text-lg text-zinc-600 dark:text-zinc-400">
-                Customer information arrives through emails, forms and conversations, but sales teams still spend valuable time manually copying that information into CRM systems.
+                Customer enquiries arrive through different channels. But converting them into action still requires manual work: reading, extracting, qualifying, checking for duplicates, assigning, and creating follow-ups. This creates delays, inconsistency, and lost opportunities.
               </p>
             </div>
 
@@ -319,7 +319,7 @@ export default function LandingPage() {
 
             <div className="mt-16 text-center">
               <span className="inline-block bg-blue-600 text-white font-semibold px-6 py-3 rounded-full shadow-md text-lg">
-                LeadLoop closes the gap between conversation and action.
+                Intake → Intelligence → Decision → Action
               </span>
             </div>
           </div>
@@ -328,9 +328,12 @@ export default function LandingPage() {
         {/* ---------------- 4. FEATURES SECTION (IMPROVED) ---------------- */}
         <section className="py-24 max-w-7xl mx-auto px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-20">
-            <h2 className="text-base font-semibold leading-7 text-blue-600 tracking-wide uppercase">Everything you need to scale sales</h2>
+            <h2 className="text-base font-semibold leading-7 text-blue-600 tracking-wide uppercase">The LeadLoop Platform</h2>
             <p className="mt-2 text-3xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-4xl">
-              Intelligent CRM primitives
+              Multi-channel AI with human control
+            </p>
+            <p className="mt-4 text-lg text-zinc-600 dark:text-zinc-400">
+              Email, website forms, and manual intake all feed the same intelligent pipeline. AI handles the work, humans keep control.
             </p>
           </div>
 
