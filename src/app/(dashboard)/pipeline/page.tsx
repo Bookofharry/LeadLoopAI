@@ -63,7 +63,7 @@ export default async function PipelinePage() {
                       No leads in {column.label}
                     </div>
                   ) : (
-                    columnLeads.map((lead) => (
+                    columnLeads.map((lead: any) => (
                       <a href={`/leads/${lead.id}`} key={lead.id} className="block rounded-lg border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer">
                         <div className="flex justify-between items-start mb-2">
                           <h4 className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{lead.full_name}</h4>
