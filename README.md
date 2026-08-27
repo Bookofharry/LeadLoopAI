@@ -227,9 +227,9 @@ The current production build passes. The repository-wide lint command currently 
 
 ## Demo
 
-- **Live Application:** [ADD LIVE URL]
-- **Demo Video:** [ADD DEMO VIDEO LINK]
-- **Presentation:** [ADD PRESENTATION LINK]
+- **Live Application:** [https://lead-loop-ai.vercel.app](https://lead-loop-ai.vercel.app)
+- **Demo Video:** [https://drive.google.com/file/d/1CqCictwDcyhd0v7JPAEcDk0r7Jg-Aso7/view](https://drive.google.com/file/d/1CqCictwDcyhd0v7JPAEcDk0r7Jg-Aso7/view?usp=drive_link)
+- **Presentation:** [https://drive.google.com/file/d/1YodXnW-7ryF5dzu25eBTAqcrxAqkzu-D/view](https://drive.google.com/file/d/1YodXnW-7ryF5dzu25eBTAqcrxAqkzu-D/view?usp=drive_link)
 
 ## Business Impact
 
