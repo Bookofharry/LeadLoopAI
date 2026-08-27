@@ -58,14 +58,14 @@ Please respond ONLY with a raw JSON object matching the following structure (do 
     throw new Error("AI Agent is not configured");
   }
 
-  console.log("AI provider: Mistral AI model: mistral-large-latest");
+  console.log("AI provider: Mistral AI model: mistral-small-latest");
   console.log("AI extraction started");
 
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     const chatResponse = await Promise.race([
       client.chat.complete({
-        model: "mistral-large-latest",
+        model: "mistral-small-latest",
         messages: [{ role: "user", content: prompt }],
         responseFormat: { type: "json_object" }
       }),
