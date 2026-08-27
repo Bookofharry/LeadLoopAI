@@ -356,29 +356,41 @@ export default function ReviewQueueClient({ initialReviews }: { initialReviews: 
             <div className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 flex justify-between items-center">
               
               {showRejectForm ? (
-                <div className="flex flex-1 items-center gap-3 pr-4 animate-in fade-in slide-in-from-left-4">
-                  <input
-                    type="text"
-                    placeholder="Reason for rejection (e.g. Spam, Not a lead)..."
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    className="flex-1 rounded-md border-red-300 dark:border-red-900/50 bg-white dark:bg-zinc-900 text-sm focus:ring-red-500"
-                    autoFocus
-                  />
-                  <button
-                    onClick={handleReject}
-                    disabled={loading}
-                    className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 shadow-sm transition-colors disabled:opacity-50"
-                  >
-                    Confirm Reject
-                  </button>
-                  <button
-                    onClick={() => setShowRejectForm(false)}
-                    disabled={loading}
-                    className="text-sm font-semibold text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-                  >
-                    Cancel
-                  </button>
+                <div className="flex flex-1 items-start gap-3 pr-4 animate-in fade-in slide-in-from-left-4">
+                  <div className="flex-1">
+                    <label htmlFor="reject-reason" className="sr-only">Reason for rejection</label>
+                    <textarea
+                      id="reject-reason"
+                      rows={3}
+                      maxLength={250}
+                      placeholder="Brief reason for rejection (e.g. Spam, Not a lead)..."
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      className="w-full resize-none rounded-md border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-red-300 placeholder:italic p-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      autoFocus
+                      aria-label="Reason for rejection"
+                    />
+                    <div className="mt-1 flex items-center justify-between text-xs text-zinc-500">
+                      <span>Optional — help the team triage this quickly.</span>
+                      <span>{rejectReason.length}/250</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={handleReject}
+                      disabled={loading}
+                      className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 shadow-sm transition-colors disabled:opacity-50"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      onClick={() => setShowRejectForm(false)}
+                      disabled={loading}
+                      className="px-4 py-2 rounded-lg text-sm font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 dark:text-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <button

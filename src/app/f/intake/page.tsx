@@ -33,6 +33,87 @@ export default function ManualIntakeForm() {
     }
   }
 
+  // Poll automation run if processing was queued
+  useEffect(() => {
+    if (!result || result.status !== 'RUNNING') return;
+    let mounted = true;
+    const runId = result.automationRunId;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/automation-runs/${runId}`);
+        const j = await res.json();
+        if (!mounted) return;
+        if (j.success && j.run) {
+          // update current step for live progress UI
+          setResult(prev => ({ ...(prev || {}), current_step: j.run.current_step, run: j.run } as any));
+          const status = (j.run.status || '').toUpperCase();
+          if (status === 'SUCCESS' || status === 'Success') {
+            setResult(prev => ({ ...(prev || {}), status: 'SUCCESS', leadId: j.run.lead_id, aiResult: null, assignedRep: j.run.lead?.name || null } as any));
+          } else if (status === 'NEEDS_REVIEW' || status === 'Needs Review') {
+            setResult(prev => ({ ...(prev || {}), status: 'NEEDS_REVIEW' } as any));
+          } else if (status === 'FAILED' || status === 'Failed') {
+            setError(j.run.error_message || 'Processing failed');
+            setResult(null);
+          } else {
+            // still running, poll again
+            setTimeout(poll, 2000);
+          }
+        } else {
+          setTimeout(poll, 2000);
+        }
+      } catch (err) {
+        console.error('poll error', err);
+        setTimeout(poll, 2000);
+      }
+    };
+
+    poll();
+    return () => { mounted = false; };
+  }, [result]);
+
+  if (result?.status === 'RUNNING') {
+    const steps = [
+      'Queued',
+      'AI Extraction',
+      'Confidence Check',
+      'Human Review Required',
+      'CRM Update',
+      'Task Creation',
+      'Notification',
+      'Completed'
+    ];
+    const current = (result.current_step || (result.run && result.run.current_step) || 'Queued');
+    const idx = Math.max(0, steps.indexOf(current));
+    const percent = Math.round(((idx + 1) / steps.length) * 100);
+
+    return (
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 py-12 sm:px-6 lg:px-8">
+        <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Processing Lead</h1>
+            <p className="mt-2 text-zinc-500 dark:text-zinc-400">LeadLoop is processing the lead in the background. This usually completes in a few seconds.</p>
+          </div>
+
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-8">
+            <div className="mb-4 text-sm text-zinc-600 dark:text-zinc-300">Current step: <strong className="text-zinc-900 dark:text-zinc-100">{current}</strong></div>
+            <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-3 overflow-hidden">
+              <div className="h-3 bg-blue-600 dark:bg-blue-400 transition-all" style={{ width: `${percent}%` }} />
+            </div>
+            <div className="mt-3 text-xs text-zinc-500 flex justify-between">
+              <span>Progress</span>
+              <span>{percent}%</span>
+            </div>
+
+            <div className="mt-6 flex gap-3 justify-center">
+              <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-sm font-semibold">Refresh</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // --- RESULT STATES ---
 
   if (result?.status === "SUCCESS") {

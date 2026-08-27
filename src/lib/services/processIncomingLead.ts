@@ -60,7 +60,7 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
     if (intError) throw new Error(`Interaction Error: ${intError.message}`);
     interactionId = interaction.id;
 
-    // 2. Create automation run
+    // 2. Create automation run (return to caller immediately after enqueue)
     const { data: run, error: runError } = await supabase
       .from("automation_runs")
       .insert({
@@ -69,7 +69,7 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
         trigger_type: "intake",
         source: payload.source,
         status: "Running",
-        current_step: "AI Extraction",
+        current_step: "Queued",
       })
       .select("id")
       .single();
@@ -77,88 +77,101 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
     if (runError) throw new Error(`Run Error: ${runError.message}`);
     automationRunId = run.id;
 
-    // Helper to log steps
-    const logStep = async (stepName: string, status: string, output: unknown = null, error: unknown = null) => {
-      await supabase.from("automation_steps").insert({
-        company_id: payload.companyId,
-        automation_run_id: automationRunId,
-        step_name: stepName,
-        status,
-        output,
-        error: error ? String(error) : null,
-      });
-      await supabase.from("automation_runs")
-        .update({ current_step: stepName })
-        .eq("id", automationRunId);
-    };
-
-    // 3. AI Extraction
-    let aiResult;
-    try {
-      aiResult = await processCustomerEnquiry(payload.rawContent);
-      
-      // Override with trusted structured data if available
-      if (payload.structuredData) {
-         if (payload.structuredData.fullName) aiResult.name = payload.structuredData.fullName;
-         if (payload.structuredData.email) aiResult.email = payload.structuredData.email;
-         if (payload.structuredData.phone) aiResult.phone = payload.structuredData.phone;
-         if (payload.structuredData.company) aiResult.company = payload.structuredData.company;
-      }
-
-      await logStep("AI Extraction", "Success", aiResult);
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : String(error);
-      await logStep("AI Extraction", "Failed", null, msg);
-      throw error;
-    }
-
-    // 4. Update Interaction Summary
-    await supabase.from("interactions")
-      .update({ summary: aiResult.summary })
-      .eq("id", interactionId);
-
-    // 5. Confidence Check (Human Review Queue)
-    if (aiResult.confidence < 0.70) {
-      await logStep("Confidence Check", "Needs Review", { confidence: aiResult.confidence, missing: aiResult.missing_fields });
-      
-      const { data: reviewRecord } = await supabase.from("review_queue").insert({
-        company_id: payload.companyId,
-        interaction_id: interactionId,
-        extracted_data: aiResult,
-        confidence: aiResult.confidence,
-        missing_fields: aiResult.missing_fields,
-        status: "Pending"
-      }).select("id").single();
-
-      await supabase.from("automation_runs")
-        .update({ status: "Needs Review", current_step: "Human Review Required" })
-        .eq("id", automationRunId);
-        
-      return { 
-        status: "NEEDS_REVIEW",
-        reviewId: reviewRecord?.id,
-        automationRunId: automationRunId,
-        interactionId: interactionId,
-        aiResult
+    // Start background processing and return immediately so the UI doesn't block on AI latency
+    ;(async () => {
+      const bgSupabase = createAdminClient();
+      const logStep = async (stepName: string, status: string, output: unknown = null, error: unknown = null) => {
+        await bgSupabase.from("automation_steps").insert({
+          company_id: payload.companyId,
+          automation_run_id: automationRunId,
+          step_name: stepName,
+          status,
+          output,
+          error: error ? String(error) : null,
+        });
+        await bgSupabase.from("automation_runs")
+          .update({ current_step: stepName })
+          .eq("id", automationRunId);
       };
-    }
-    
-    await logStep("Confidence Check", "Passed", { confidence: aiResult.confidence });
-    
-    return await continueLeadProcessing(
-      payload.companyId,
-      payload.source,
-      aiResult as any,
-      interactionId!,
-      automationRunId!,
-      false
-    );
+
+      try {
+        await bgSupabase.from("automation_runs").update({ current_step: "AI Extraction" }).eq("id", automationRunId);
+
+        // AI Extraction
+        let aiResult;
+        try {
+          aiResult = await processCustomerEnquiry(payload.rawContent);
+          if (payload.structuredData) {
+             if (payload.structuredData.fullName) aiResult.name = payload.structuredData.fullName;
+             if (payload.structuredData.email) aiResult.email = payload.structuredData.email;
+             if (payload.structuredData.phone) aiResult.phone = payload.structuredData.phone;
+             if (payload.structuredData.company) aiResult.company = payload.structuredData.company;
+          }
+          await logStep("AI Extraction", "Success", aiResult);
+        } catch (error: unknown) {
+          const msg = error instanceof Error ? error.message : String(error);
+          await logStep("AI Extraction", "Failed", null, msg);
+          throw error;
+        }
+
+        // Update Interaction Summary
+        await bgSupabase.from("interactions")
+          .update({ summary: aiResult.summary })
+          .eq("id", interactionId);
+
+        // Confidence Check
+        if (aiResult.confidence < 0.70) {
+          await logStep("Confidence Check", "Needs Review", { confidence: aiResult.confidence, missing: aiResult.missing_fields });
+          const { data: reviewRecord } = await bgSupabase.from("review_queue").insert({
+            company_id: payload.companyId,
+            interaction_id: interactionId,
+            extracted_data: aiResult,
+            confidence: aiResult.confidence,
+            missing_fields: aiResult.missing_fields,
+            status: "Pending"
+          }).select("id").single();
+
+          await bgSupabase.from("automation_runs")
+            .update({ status: "Needs Review", current_step: "Human Review Required" })
+            .eq("id", automationRunId);
+
+          return;
+        }
+
+        await logStep("Confidence Check", "Passed", { confidence: aiResult.confidence });
+
+        // Continue processing (CRM, tasks, notifications)
+        await continueLeadProcessing(
+          payload.companyId,
+          payload.source,
+          aiResult as any,
+          interactionId!,
+          automationRunId!,
+          false
+        );
+
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error("[bg processIncomingLead] Failed:", msg);
+        await bgSupabase.from("automation_runs").update({ 
+          status: "Failed",
+          error_message: msg,
+          completed_at: new Date().toISOString()
+        }).eq("id", automationRunId);
+      }
+    })();
+
+    // Return immediately; client can poll automation run for completion
+    return {
+      status: "RUNNING",
+      automationRunId,
+      interactionId
+    };
 
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("[processIncomingLead] Failed:", msg);
+    console.error("[processIncomingLead] enqueue failed:", msg);
     if (automationRunId) {
-      const supabase = createAdminClient();
       await supabase.from("automation_runs").update({ 
         status: "Failed",
         error_message: msg,

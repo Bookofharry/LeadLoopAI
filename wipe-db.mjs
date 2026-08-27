@@ -17,10 +17,10 @@ async function wipeDatabase() {
   console.log("Starting full database wipe...");
 
   try {
-    // 1. Wipe all data in public schema
-    console.log("Wiping all public tables...");
-    
-    const tablesToWipe = [
+    // 1. Wipe selected public tables with multiple passes to handle FK constraints
+    console.log("Wiping selected public tables (multi-pass to handle FK constraints)...");
+
+    let tablesToWipe = [
       "notifications",
       "tasks",
       "automation_steps",
@@ -33,30 +33,65 @@ async function wipeDatabase() {
       "companies"
     ];
 
-    for (const table of tablesToWipe) {
-      console.log(`Clearing table: ${table}`);
-      const { error } = await admin.from(table).delete().neq("id", "00000000-0000-0000-0000-000000000000"); 
-      if (error) {
-        console.warn(`Error clearing ${table}:`, error.message);
+    const maxPasses = 6;
+    for (let pass = 1; pass <= maxPasses && tablesToWipe.length > 0; pass++) {
+      console.log(`Pass ${pass}/${maxPasses}, tables remaining: ${tablesToWipe.length}`);
+      const remaining = [];
+
+      for (const table of tablesToWipe) {
+        try {
+          console.log(`Attempting to clear table: ${table}`);
+          const { error, count } = await admin.from(table).delete().neq("id", "00000000-0000-0000-0000-000000000000");
+          if (error) {
+            console.warn(`Pass ${pass}: Could not clear ${table}: ${error.message}`);
+            remaining.push(table);
+          } else {
+            console.log(`Pass ${pass}: Cleared ${table}`);
+          }
+        } catch (err) {
+          console.warn(`Pass ${pass}: Unexpected error clearing ${table}:`, String(err));
+          remaining.push(table);
+        }
+      }
+
+      if (remaining.length === tablesToWipe.length) {
+        console.log(`No progress on pass ${pass}; will retry up to ${maxPasses} passes.`);
+      }
+
+      tablesToWipe = remaining;
+
+      // small delay between passes to allow DB state to settle
+      if (tablesToWipe.length > 0) {
+        await new Promise((res) => setTimeout(res, 700));
       }
     }
 
-    // 2. Wipe all auth users
-    console.log("Fetching all auth users...");
-    const { data: { users }, error: listError } = await admin.auth.admin.listUsers();
-    if (listError) throw listError;
-
-    console.log(`Found ${users.length} users to delete.`);
-    let deletedCount = 0;
-    for (const user of users) {
-      const { error: delError } = await admin.auth.admin.deleteUser(user.id);
-      if (delError) {
-        console.error(`Failed to delete user ${user.id}:`, delError.message);
-      } else {
-        deletedCount++;
-      }
+    if (tablesToWipe.length > 0) {
+      console.warn("Finished passes but some tables could not be cleared due to constraints:", tablesToWipe);
+      console.warn("Consider running a TRUNCATE ... CASCADE via a direct DB connection if you want a forceful wipe.");
     }
-    console.log(`Successfully deleted ${deletedCount} users.`);
+
+    // 2. Auth users deletion is disabled by default to avoid removing real users.
+    //    To enable deletion of auth users set REMOVE_AUTH=true in your environment.
+    if (process.env.REMOVE_AUTH === 'true') {
+      console.log("REMOVE_AUTH=true; deleting auth users...");
+      const { data: { users }, error: listError } = await admin.auth.admin.listUsers();
+      if (listError) throw listError;
+
+      console.log(`Found ${users.length} users to delete.`);
+      let deletedCount = 0;
+      for (const user of users) {
+        const { error: delError } = await admin.auth.admin.deleteUser(user.id);
+        if (delError) {
+          console.error(`Failed to delete user ${user.id}:`, delError.message);
+        } else {
+          deletedCount++;
+        }
+      }
+      console.log(`Successfully deleted ${deletedCount} users.`);
+    } else {
+      console.log("Skipping deletion of auth users (REMOVE_AUTH is not 'true').");
+    }
 
     console.log("Database wipe complete.");
   } catch (err) {
