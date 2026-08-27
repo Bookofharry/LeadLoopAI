@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { processCustomerEnquiry } from "@/lib/services/ai";
+import { hasRequiredLeadContact } from "@/lib/services/leadValidation";
 import { after } from "next/server";
 
 export type IntakeSource = "MANUAL" | "WEBSITE_FORM" | "WEBHOOK" | "GMAIL" | "WHATSAPP";
@@ -183,15 +184,25 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
           .update({ summary: aiResult.summary })
           .eq("id", interactionId);
 
+        // Contact details are a hard CRM requirement, regardless of AI confidence.
+        const hasRequiredContact = hasRequiredLeadContact(aiResult.email, aiResult.phone);
+        const missingFields = hasRequiredContact
+          ? aiResult.missing_fields
+          : Array.from(new Set([...(aiResult.missing_fields || []), "email_or_phone"]));
+
         // Confidence Check
-        if (aiResult.confidence < 0.70) {
-          await logStep("Confidence Check", "Needs Review", { confidence: aiResult.confidence, missing: aiResult.missing_fields });
+        if (!hasRequiredContact || aiResult.confidence < 0.70) {
+          await logStep("Confidence Check", "Needs Review", {
+            confidence: aiResult.confidence,
+            missing: missingFields,
+            reason: !hasRequiredContact ? "Email or phone is required" : "Low extraction confidence",
+          });
           const { data: reviewRecord } = await bgSupabase.from("review_queue").insert({
             company_id: payload.companyId,
             interaction_id: interactionId,
             extracted_data: aiResult,
             confidence: aiResult.confidence,
-            missing_fields: aiResult.missing_fields,
+            missing_fields: missingFields,
             status: "Pending"
           }).select("id").single();
 
@@ -255,6 +266,10 @@ export async function continueLeadProcessing(
   isHumanApproved: boolean = false
 ) {
   const supabase = createAdminClient();
+
+  if (!hasRequiredLeadContact(aiResult.email, aiResult.phone)) {
+    throw new Error("A valid email address or phone number is required before creating a CRM lead");
+  }
   
   const logStep = async (stepName: string, status: string, output: unknown = null, error: unknown = null) => {
     await supabase.from("automation_steps").insert({

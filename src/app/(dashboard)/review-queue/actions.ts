@@ -2,6 +2,7 @@
 
 import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { AIQualificationResult } from "@/lib/services/ai"
+import { hasRequiredLeadContact } from "@/lib/services/leadValidation"
 
 export async function getPendingReviewCount() {
   const supabase = await createClient()
@@ -55,6 +56,13 @@ export async function approveReview(reviewId: string, correctedData: AIQualifica
   const supabase = createAdminClient()
 
   try {
+    if (!hasRequiredLeadContact(correctedData.email, correctedData.phone)) {
+      return {
+        success: false,
+        error: "Add a valid email address or phone number before approving this lead.",
+      }
+    }
+
     const { data: userAuth } = await supabase.auth.getUser()
     const userId = userAuth.user?.id
 
