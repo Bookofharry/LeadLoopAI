@@ -44,10 +44,12 @@ export default async function TasksPage({
   let completedCount = 0
 
   try {
-    const [tasksResult, countsResult] = await Promise.race([
+    const raceResult = await Promise.race([
       Promise.all([fetchTasks, fetchCounts]),
       timeout(5000)
-    ])
+    ]);
+
+    const [tasksResult, countsResult] = raceResult as any;
 
     allTasks = tasksResult.data || []
     pendingCount = countsResult[0]?.count || 0

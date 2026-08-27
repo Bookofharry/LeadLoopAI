@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Sparkles, CheckCircle2, AlertCircle, ArrowRight, UserCircle, Briefcase, FileSearch } from "lucide-react"
 import { submitManualIntake } from "./actions"
 import Link from "next/link"
@@ -44,14 +44,14 @@ export default function ManualIntakeForm() {
         const res = await fetch(`/api/automation-runs/${runId}`);
         const j = await res.json();
         if (!mounted) return;
-        if (j.success && j.run) {
+          if (j.success && j.run) {
           // update current step for live progress UI
-          setResult(prev => ({ ...(prev || {}), current_step: j.run.current_step, run: j.run } as any));
+          setResult((prev: any) => ({ ...(prev || {}), current_step: j.run.current_step, run: j.run } as any));
           const status = (j.run.status || '').toUpperCase();
           if (status === 'SUCCESS' || status === 'Success') {
-            setResult(prev => ({ ...(prev || {}), status: 'SUCCESS', leadId: j.run.lead_id, aiResult: null, assignedRep: j.run.lead?.name || null } as any));
+            setResult((prev: any) => ({ ...(prev || {}), status: 'SUCCESS', leadId: j.run.lead_id, aiResult: null, assignedRep: j.run.lead?.name || null } as any));
           } else if (status === 'NEEDS_REVIEW' || status === 'Needs Review') {
-            setResult(prev => ({ ...(prev || {}), status: 'NEEDS_REVIEW' } as any));
+            setResult((prev: any) => ({ ...(prev || {}), status: 'NEEDS_REVIEW' } as any));
           } else if (status === 'FAILED' || status === 'Failed') {
             setError(j.run.error_message || 'Processing failed');
             setResult(null);
