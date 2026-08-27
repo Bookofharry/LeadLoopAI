@@ -16,10 +16,14 @@ const linkClassName =
 function BrandMark() {
   return (
     <div className="flex items-center gap-2.5 text-lg font-bold tracking-tight text-white">
-      <span className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg shadow-violet-950/40">
+      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white shadow-md">
         <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-          <path d="m3.27 6.96 8.73 5.05 8.73-5.05M12 22.08V12" />
+          <polyline points="7.5 4.21 12 6.81 16.5 4.21" />
+          <polyline points="7.5 19.79 7.5 14.6 3 12" />
+          <polyline points="21 12 16.5 14.6 16.5 19.79" />
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+          <line x1="12" y1="22.08" x2="12" y2="12" />
         </svg>
       </span>
       <span>LeadLoop<span className="text-blue-400">AI</span></span>
@@ -75,12 +79,6 @@ export function LeadLoopFooter() {
               <li>
                 <a href="https://github.com/Bookofharry/LeadLoopAI" target="_blank" rel="noreferrer" className={linkClassName}>
                   GitHub <ArrowUpRight aria-hidden="true" className="size-3.5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                  <span className="sr-only"> (opens in a new tab)</span>
-                </a>
-              </li>
-              <li>
-                <a href="https://lead-loop-ai.vercel.app" target="_blank" rel="noreferrer" className={linkClassName}>
-                  Live Application <ArrowUpRight aria-hidden="true" className="size-3.5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                   <span className="sr-only"> (opens in a new tab)</span>
                 </a>
               </li>
