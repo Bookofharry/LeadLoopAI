@@ -5,15 +5,19 @@ import { Sparkles, CheckCircle2, AlertCircle, ArrowRight, UserCircle, Briefcase,
 import { submitManualIntake } from "./actions"
 import Link from "next/link"
 
+const PROCESSING_STEPS = ['Queued', 'AI Extraction', 'Confidence Check', 'Human Review Required', 'CRM Update', 'Task Creation', 'Notification', 'Completed']
+
 export default function ManualIntakeForm() {
   const [result, setResult] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [progress, setProgress] = useState(0)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    setProgress(4)
 
     const formData = new FormData(e.currentTarget)
     const rawContent = formData.get("raw_content") as string
@@ -34,58 +38,79 @@ export default function ManualIntakeForm() {
   }
 
   // Poll automation run if processing was queued
+  const runId = result?.status === 'RUNNING' ? result.automationRunId : null
+  const currentStep = runId ? (result?.current_step || result?.run?.current_step || 'Queued') : null
+
   useEffect(() => {
-    if (!result || result.status !== 'RUNNING') return;
-    let mounted = true;
-    const runId = result.automationRunId;
+    if (!runId) return
+
+    let cancelled = false
+    let pollTimer: ReturnType<typeof setTimeout> | undefined
+    let completionTimer: ReturnType<typeof setTimeout> | undefined
 
     const poll = async () => {
       try {
         const res = await fetch(`/api/automation-runs/${runId}`);
         const j = await res.json();
-        if (!mounted) return;
-          if (j.success && j.run) {
+        if (cancelled) return
+        if (j.success && j.run) {
           // update current step for live progress UI
-          setResult((prev: any) => ({ ...(prev || {}), current_step: j.run.current_step, run: j.run } as any));
-          const status = (j.run.status || '').toUpperCase();
-          if (status === 'SUCCESS' || status === 'Success') {
-            setResult((prev: any) => ({ ...(prev || {}), status: 'SUCCESS', leadId: j.run.lead_id, aiResult: null, assignedRep: j.run.lead?.name || null } as any));
-          } else if (status === 'NEEDS_REVIEW' || status === 'Needs Review') {
-            setResult((prev: any) => ({ ...(prev || {}), status: 'NEEDS_REVIEW' } as any));
-          } else if (status === 'FAILED' || status === 'Failed') {
-            setError(j.run.error_message || 'Processing failed');
-            setResult(null);
+          setResult((prev: any) => ({ ...(prev || {}), current_step: j.run.current_step, run: j.run } as any))
+          const stepIndex = Math.max(0, PROCESSING_STEPS.indexOf(j.run.current_step || 'Queued'))
+          const milestone = Math.round(((stepIndex + 1) / PROCESSING_STEPS.length) * 94)
+          setProgress((value) => Math.max(value, milestone))
+          const status = String(j.run.status || '').toUpperCase()
+          if (status === 'SUCCESS') {
+            setProgress(100)
+            completionTimer = setTimeout(() => {
+              if (!cancelled) {
+                setResult((prev: any) => ({ ...(prev || {}), status: 'SUCCESS', leadId: j.run.lead_id, aiResult: null, assignedRep: j.run.lead?.name || null } as any))
+              }
+            }, 650)
+          } else if (status === 'NEEDS REVIEW' || status === 'NEEDS_REVIEW') {
+            setProgress(100)
+            completionTimer = setTimeout(() => {
+              if (!cancelled) setResult((prev: any) => ({ ...(prev || {}), status: 'NEEDS_REVIEW' } as any))
+            }, 650)
+          } else if (status === 'FAILED') {
+            setError(j.run.error_message || 'Processing failed')
+            setResult(null)
           } else {
-            // still running, poll again
-            setTimeout(poll, 2000);
+            pollTimer = setTimeout(poll, 1200)
           }
         } else {
-          setTimeout(poll, 2000);
+          pollTimer = setTimeout(poll, 1200)
         }
       } catch (err) {
-        console.error('poll error', err);
-        setTimeout(poll, 2000);
+        console.error('poll error', err)
+        if (!cancelled) pollTimer = setTimeout(poll, 2000)
       }
-    };
+    }
 
-    poll();
-    return () => { mounted = false; };
-  }, [result]);
+    poll()
+    return () => {
+      cancelled = true
+      if (pollTimer) clearTimeout(pollTimer)
+      if (completionTimer) clearTimeout(completionTimer)
+    }
+  }, [runId])
+
+  // Keep the indicator moving between real backend milestones without claiming completion early.
+  useEffect(() => {
+    if (!runId) return
+    const timer = setInterval(() => {
+      setProgress((value) => {
+        if (value >= 94) return value
+        const remaining = 94 - value
+        return Math.min(94, value + Math.max(0.35, remaining * 0.035))
+      })
+    }, 350)
+    return () => clearInterval(timer)
+  }, [runId])
 
   if (result?.status === 'RUNNING') {
-    const steps = [
-      'Queued',
-      'AI Extraction',
-      'Confidence Check',
-      'Human Review Required',
-      'CRM Update',
-      'Task Creation',
-      'Notification',
-      'Completed'
-    ];
-    const current = (result.current_step || (result.run && result.run.current_step) || 'Queued');
-    const idx = Math.max(0, steps.indexOf(current));
-    const percent = Math.round(((idx + 1) / steps.length) * 100);
+    const current = currentStep || 'Queued'
+    const displayedPercent = Math.round(progress)
 
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 py-12 sm:px-6 lg:px-8">
@@ -98,11 +123,11 @@ export default function ManualIntakeForm() {
           <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-8">
             <div className="mb-4 text-sm text-zinc-600 dark:text-zinc-300">Current step: <strong className="text-zinc-900 dark:text-zinc-100">{current}</strong></div>
             <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-3 overflow-hidden">
-              <div className="h-3 bg-blue-600 dark:bg-blue-400 transition-all" style={{ width: `${percent}%` }} />
+              <div className="h-3 bg-blue-600 dark:bg-blue-400 transition-[width] duration-500 ease-out" style={{ width: `${progress}%` }} />
             </div>
             <div className="mt-3 text-xs text-zinc-500 flex justify-between">
               <span>Progress</span>
-              <span>{percent}%</span>
+              <span>{displayedPercent}%</span>
             </div>
 
             <div className="mt-6 flex gap-3 justify-center">
@@ -135,7 +160,7 @@ export default function ManualIntakeForm() {
               <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Lead Captured</h1>
-            <p className="mt-2 text-zinc-500 dark:text-zinc-400">Mistral AI successfully extracted and structured this opportunity.</p>
+            <p className="mt-2 text-zinc-500 dark:text-zinc-400">The AI Agent successfully extracted and structured this opportunity.</p>
           </div>
 
           <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200 dark:border-zinc-800 p-8 space-y-6">

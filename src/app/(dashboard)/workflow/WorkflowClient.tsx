@@ -69,7 +69,7 @@ const NODE_DEF: Record<string, NodeDef> = {
   'intake-web': { icon: Globe, title: "Website Form" },
   'intake-gmail': { icon: Mail, title: "Gmail", muted: true },
   
-  'ai': { icon: Cpu, title: "LeadLoop AI", subtitle: "Mistral-powered", isAnchor: true },
+  'ai': { icon: Cpu, title: "AI Agent", subtitle: "Automated intelligence", isAnchor: true },
   'extraction': { icon: FileCheck, title: "Extract" },
   'validation': { icon: ShieldCheck, title: "Validate" },
   

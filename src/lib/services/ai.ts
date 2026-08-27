@@ -54,7 +54,7 @@ Please respond ONLY with a raw JSON object matching the following structure (do 
 `;
 
   if (!process.env.MISTRAL_API_KEY) {
-    throw new Error("MISTRAL_API_KEY is not configured");
+    throw new Error("AI Agent is not configured");
   }
 
   console.log("AI provider: Mistral AI model: mistral-large-latest");
@@ -68,7 +68,7 @@ Please respond ONLY with a raw JSON object matching the following structure (do 
     });
 
     const resultText = chatResponse.choices?.[0]?.message?.content;
-    if (!resultText) throw new Error("Empty response from Mistral");
+    if (!resultText) throw new Error("The AI Agent returned an empty response");
     
     // Ensure it's a string, since Mistral SDK typing for content might vary slightly
     const textContent = typeof resultText === 'string' ? resultText : JSON.stringify(resultText);
