@@ -14,21 +14,18 @@ export default async function TasksPage({
   const page = Math.max(1, parseInt(String(params?.page || '1')))
   const offset = (page - 1) * TASK_PAGE_SIZE
 
-  // Fetch pending and completed tasks with limits
-  const [
-    { data: allTasks },
-    { count: pendingCount },
-    { count: completedCount }
-  ] = await Promise.all([
-    supabase
-      .from('tasks')
-      .select(`
-        *,
-        lead:leads!tasks_lead_company_fk(id, name, company),
-        assigned_to:profiles!tasks_assigned_to_company_fk(name)
-      `)
-      .order('due_at', { ascending: true })
-      .limit(TASK_PAGE_SIZE * 2), // Fetch enough to split between pending/completed
+  // Fetch paginated tasks and counts, with a short timeout to avoid freezing
+  const fetchTasks = supabase
+    .from('tasks')
+    .select(`
+      *,
+      lead:leads!tasks_lead_company_fk(id, name, company),
+      assigned_to:profiles!tasks_assigned_to_company_fk(name)
+    `)
+    .order('due_at', { ascending: true })
+    .range(offset, offset + TASK_PAGE_SIZE - 1)
+
+  const fetchCounts = Promise.all([
     supabase
       .from('tasks')
       .select('id', { count: 'exact', head: true })
@@ -38,6 +35,30 @@ export default async function TasksPage({
       .select('id', { count: 'exact', head: true })
       .eq('status', 'Completed')
   ])
+
+  // Timeout helper (5s)
+  const timeout = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+
+  let allTasks: any[] = []
+  let pendingCount = 0
+  let completedCount = 0
+
+  try {
+    const [tasksResult, countsResult] = await Promise.race([
+      Promise.all([fetchTasks, fetchCounts]),
+      timeout(5000)
+    ])
+
+    allTasks = tasksResult.data || []
+    pendingCount = countsResult[0]?.count || 0
+    completedCount = countsResult[1]?.count || 0
+  } catch (err) {
+    console.error('Failed to fetch tasks (timeout or error):', err)
+    // Graceful fallback: render empty lists and show counts as 0
+    allTasks = []
+    pendingCount = 0
+    completedCount = 0
+  }
 
   const pendingTasks = allTasks?.filter(t => t.status === 'Pending') || []
   const completedTasks = allTasks?.filter(t => t.status === 'Completed') || []
