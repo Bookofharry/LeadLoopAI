@@ -2,11 +2,17 @@ import { Bell, Search, UserCircle } from "lucide-react"
 import { logout } from "@/app/(auth)/actions"
 import { MobileSidebar } from "./MobileSidebar"
 
-export function Header() {
+export function Header({
+  pendingReviewCount = 0,
+  pendingTaskCount = 0,
+}: {
+  pendingReviewCount?: number
+  pendingTaskCount?: number
+}) {
   return (
     <header className="flex h-16 items-center justify-between border-b border-zinc-200 bg-white px-6 dark:border-zinc-800 dark:bg-zinc-950">
       <div className="flex flex-1 items-center gap-4">
-        <MobileSidebar />
+        <MobileSidebar pendingReviewCount={pendingReviewCount} pendingTaskCount={pendingTaskCount} />
         <div className="relative w-full max-w-md">
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
             <Search className="h-4 w-4 text-zinc-400" aria-hidden="true" />

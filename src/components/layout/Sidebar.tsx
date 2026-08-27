@@ -15,7 +15,15 @@ import {
   Blocks
 } from "lucide-react"
 
-export function Sidebar({ className, pendingReviewCount = 0 }: { className?: string, pendingReviewCount?: number }) {
+export function Sidebar({
+  className,
+  pendingReviewCount = 0,
+  pendingTaskCount = 0,
+}: {
+  className?: string,
+  pendingReviewCount?: number,
+  pendingTaskCount?: number,
+}) {
   const pathname = usePathname()
 
   const navigation = [
@@ -23,7 +31,7 @@ export function Sidebar({ className, pendingReviewCount = 0 }: { className?: str
     { name: 'Pipeline', href: '/pipeline', icon: KanbanSquare },
     { name: 'Leads', href: '/leads', icon: Users },
     { name: 'Review Queue', href: '/review-queue', icon: Inbox, badge: pendingReviewCount },
-    { name: 'Tasks', href: '/tasks', icon: CheckSquare },
+    { name: 'Tasks', href: '/tasks', icon: CheckSquare, badge: pendingTaskCount },
     { name: 'Automation Runs', href: '/automation-runs', icon: Activity },
     { name: 'Workflow', href: '/workflow', icon: GitMerge },
     { name: 'Integrations', href: '/integrations', icon: Blocks },

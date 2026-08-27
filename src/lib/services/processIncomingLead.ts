@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { processCustomerEnquiry } from "@/lib/services/ai";
+import { after } from "next/server";
 
 export type IntakeSource = "MANUAL" | "WEBSITE_FORM" | "WEBHOOK" | "GMAIL" | "WHATSAPP";
 
@@ -77,8 +78,9 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
     if (runError) throw new Error(`Run Error: ${runError.message}`);
     automationRunId = run.id;
 
-    // Start background processing and return immediately so the UI doesn't block on AI latency
-    ;(async () => {
+    // Keep background processing alive after the server action returns.
+    // A detached promise can be terminated by the Next.js runtime mid-extraction.
+    after(async () => {
       const bgSupabase = createAdminClient();
       const logStep = async (stepName: string, status: string, output: unknown = null, error: unknown = null) => {
         await bgSupabase.from("automation_steps").insert({
@@ -159,7 +161,7 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
           completed_at: new Date().toISOString()
         }).eq("id", automationRunId);
       }
-    })();
+    });
 
     // Return immediately; client can poll automation run for completion
     return {

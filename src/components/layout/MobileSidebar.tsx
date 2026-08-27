@@ -5,7 +5,13 @@ import { Menu, X } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { Sidebar } from './Sidebar'
 
-export function MobileSidebar() {
+export function MobileSidebar({
+  pendingReviewCount = 0,
+  pendingTaskCount = 0,
+}: {
+  pendingReviewCount?: number
+  pendingTaskCount?: number
+}) {
   const [isOpen, setIsOpen] = useState(false)
   const pathname = usePathname()
   const [prevPathname, setPrevPathname] = useState(pathname)
@@ -43,7 +49,11 @@ export function MobileSidebar() {
               </button>
             </div>
             
-            <Sidebar className="w-full flex-1" />
+            <Sidebar
+              className="w-full flex-1"
+              pendingReviewCount={pendingReviewCount}
+              pendingTaskCount={pendingTaskCount}
+            />
           </div>
         </div>
       )}

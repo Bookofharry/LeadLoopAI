@@ -1,11 +1,23 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Sparkles, CheckCircle2, AlertCircle, ArrowRight, UserCircle, Briefcase, FileSearch } from "lucide-react"
+import { Sparkles, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, UserCircle, Briefcase, FileSearch } from "lucide-react"
 import { submitManualIntake } from "./actions"
 import Link from "next/link"
 
 const PROCESSING_STEPS = ['Queued', 'AI Extraction', 'Confidence Check', 'Human Review Required', 'CRM Update', 'Task Creation', 'Notification', 'Completed']
+
+function BackButton() {
+  return (
+    <Link
+      href="/overview"
+      className="fixed left-4 top-4 z-50 inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white/90 px-3 py-2 text-sm font-semibold text-zinc-700 shadow-sm backdrop-blur transition-colors hover:bg-zinc-100 hover:text-zinc-950 dark:border-zinc-700 dark:bg-zinc-900/90 dark:text-zinc-200 dark:hover:bg-zinc-800 dark:hover:text-white sm:left-6 sm:top-6"
+    >
+      <ArrowLeft className="h-4 w-4" />
+      Back
+    </Link>
+  )
+}
 
 export default function ManualIntakeForm() {
   const [result, setResult] = useState<any>(null)
@@ -114,6 +126,7 @@ export default function ManualIntakeForm() {
 
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 py-12 sm:px-6 lg:px-8">
+        <BackButton />
         <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
           <div className="text-center">
             <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Processing Lead</h1>
@@ -154,6 +167,7 @@ export default function ManualIntakeForm() {
 
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 py-12 sm:px-6 lg:px-8">
+        <BackButton />
         <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="text-center">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30 mb-4 shadow-inner">
@@ -229,6 +243,7 @@ export default function ManualIntakeForm() {
   if (result?.status === "NEEDS_REVIEW") {
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 py-12 sm:px-6 lg:px-8">
+        <BackButton />
         <div className="max-w-md mx-auto space-y-6 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30 mb-2">
             <AlertCircle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
@@ -264,26 +279,27 @@ export default function ManualIntakeForm() {
   // --- CAPTURE FORM ---
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col justify-center px-4 py-5 sm:px-6 md:h-screen md:min-h-0 md:overflow-hidden md:py-4 lg:px-8">
+      <BackButton />
       <div className="sm:mx-auto sm:w-full sm:max-w-2xl">
-        <div className="flex justify-center mb-6">
+        <div className="flex justify-center mb-3">
            <div className="flex items-center gap-2 font-bold text-2xl tracking-tight text-zinc-900 dark:text-zinc-50">
-            <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
+            <div className="h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
               <FileSearch className="h-5 w-5" />
             </div>
           </div>
         </div>
-        <h2 className="text-center text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+        <h2 className="text-center text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-3xl">
           Capture a Lead
         </h2>
-        <p className="mt-3 text-center text-zinc-600 dark:text-zinc-400 max-w-lg mx-auto">
-          Paste any customer conversation, email, message, or sales note. LeadLoop AI will extract the important details and turn it into an actionable CRM opportunity.
+        <p className="mt-2 text-center text-sm text-zinc-600 dark:text-zinc-400 max-w-lg mx-auto">
+          Paste any customer conversation, email, message, or sales note. The AI Agent will extract the important details and turn it into an actionable CRM opportunity.
         </p>
       </div>
 
-      <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-2xl">
-        <div className="bg-white py-8 px-6 shadow-xl shadow-zinc-200/50 sm:rounded-2xl sm:px-10 border border-zinc-200/60 dark:bg-zinc-900 dark:border-zinc-800 dark:shadow-none">
-          <form className="space-y-6" onSubmit={handleSubmit}>
+      <div className="mt-5 sm:mx-auto sm:w-full sm:max-w-2xl">
+        <div className="bg-white px-5 py-5 shadow-xl shadow-zinc-200/50 rounded-2xl sm:px-7 border border-zinc-200/60 dark:bg-zinc-900 dark:border-zinc-800 dark:shadow-none">
+          <form className="space-y-4" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="raw_content" className="block text-sm font-semibold leading-6 text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                 Customer Conversation
@@ -292,10 +308,10 @@ export default function ManualIntakeForm() {
                 <textarea 
                   id="raw_content" 
                   name="raw_content" 
-                  rows={10} 
+                  rows={7}
                   required 
                   placeholder={"Paste an email, WhatsApp conversation, SMS, meeting note, phone call note, or other customer enquiry...\n\nExample:\n\nFrom: David Okafor <david@example.com>\n\nHi, we're looking to install solar for our 20-room guesthouse in Lekki. Our budget is around ₦8m–₦10m and we'd like this completed next month. Please call me tomorrow afternoon.\n\nDavid\n+234..."} 
-                  className="block w-full rounded-xl border-0 py-3 px-4 text-zinc-900 shadow-sm ring-1 ring-inset ring-zinc-300 placeholder:text-zinc-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 dark:bg-zinc-950 dark:text-zinc-100 dark:ring-zinc-800" 
+                  className="block min-h-40 max-h-[34vh] w-full resize-y rounded-xl border-0 px-4 py-3 text-zinc-900 shadow-sm ring-1 ring-inset ring-zinc-300 placeholder:text-zinc-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 dark:bg-zinc-950 dark:text-zinc-100 dark:ring-zinc-800"
                 />
               </div>
               <p className="mt-3 text-xs text-zinc-500 flex items-center flex-wrap gap-2">

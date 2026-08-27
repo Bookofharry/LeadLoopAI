@@ -2,6 +2,7 @@ import { Mistral } from '@mistralai/mistralai';
 
 const apiKey = process.env.MISTRAL_API_KEY;
 const client = new Mistral({ apiKey: apiKey });
+const AI_EXTRACTION_TIMEOUT_MS = 45_000;
 
 export interface AIQualificationResult {
   name: string | null;
@@ -60,12 +61,18 @@ Please respond ONLY with a raw JSON object matching the following structure (do 
   console.log("AI provider: Mistral AI model: mistral-large-latest");
   console.log("AI extraction started");
 
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
-    const chatResponse = await client.chat.complete({
-      model: "mistral-large-latest",
-      messages: [{ role: "user", content: prompt }],
-      responseFormat: { type: "json_object" }
-    });
+    const chatResponse = await Promise.race([
+      client.chat.complete({
+        model: "mistral-large-latest",
+        messages: [{ role: "user", content: prompt }],
+        responseFormat: { type: "json_object" }
+      }),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("AI Agent extraction timed out")), AI_EXTRACTION_TIMEOUT_MS);
+      }),
+    ]);
 
     const resultText = chatResponse.choices?.[0]?.message?.content;
     if (!resultText) throw new Error("The AI Agent returned an empty response");
@@ -79,6 +86,8 @@ Please respond ONLY with a raw JSON object matching the following structure (do 
   } catch (error) {
     console.error("AI processing failed:", error);
     throw error;
+  } finally {
+    if (timeout) clearTimeout(timeout);
   }
 }
 
