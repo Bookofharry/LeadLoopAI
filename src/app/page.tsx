@@ -27,7 +27,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-white dark:bg-zinc-950 font-sans text-zinc-900 dark:text-zinc-50 selection:bg-blue-200 dark:selection:bg-blue-900">
       
       {/* ---------------- NAVIGATION ---------------- */}
-      <header className="fixed inset-x-0 top-0 z-50 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800">
+      <header className="fixed inset-x-0 top-0 z-50 bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
         <nav className="flex items-center justify-between p-4 lg:px-8 max-w-7xl mx-auto" aria-label="Global">
           <div className="flex lg:flex-1">
             <Link href="/" className="-m-1.5 p-1.5 flex items-center gap-2 font-bold text-xl tracking-tight">
