@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { LeadLoopMarquee } from "@/components/marketing/LeadLoopMarquee"
+import { LeadLoopFooter } from "@/components/marketing/LeadLoopFooter"
 import { 
   ArrowRight, 
   Bot, 
@@ -59,7 +60,7 @@ export default function LandingPage() {
         </nav>
       </header>
 
-      <main className="pt-24 pb-16">
+      <main className="pt-24">
         
         {/* ---------------- 1. HERO SECTION ---------------- */}
         <section className="relative overflow-hidden px-6 lg:px-8 pb-20 pt-16">
@@ -321,7 +322,7 @@ export default function LandingPage() {
         </section>
 
         {/* ---------------- 4. FEATURES SECTION (IMPROVED) ---------------- */}
-        <section className="py-24 max-w-7xl mx-auto px-6 lg:px-8">
+        <section id="features" className="scroll-mt-24 py-24 max-w-7xl mx-auto px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-20">
             <h2 className="text-base font-semibold leading-7 text-blue-600 tracking-wide uppercase">The LeadLoop Platform</h2>
             <p className="mt-2 text-3xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-4xl">
@@ -431,7 +432,7 @@ export default function LandingPage() {
         </section>
 
         {/* ---------------- 5. HOW IT WORKS ---------------- */}
-        <section className="py-24 bg-zinc-900 text-white">
+        <section id="how-it-works" className="scroll-mt-24 py-24 bg-zinc-900 text-white">
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <div className="text-center mb-16">
               <h2 className="text-3xl font-bold tracking-tight sm:text-5xl mb-4">
@@ -552,7 +553,7 @@ export default function LandingPage() {
         </section>
 
         {/* ---------------- 7. HUMAN OVERSIGHT ---------------- */}
-        <section className="py-24 bg-zinc-50 dark:bg-zinc-900/30 border-y border-zinc-200 dark:border-zinc-800">
+        <section id="human-review" className="scroll-mt-24 py-24 bg-zinc-50 dark:bg-zinc-900/30 border-y border-zinc-200 dark:border-zinc-800">
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-16">
               <h2 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-4xl mb-4">
@@ -615,7 +616,7 @@ export default function LandingPage() {
         </section>
 
         {/* ---------------- 8. OBSERVABLE AUTOMATION ---------------- */}
-        <section className="py-24 max-w-7xl mx-auto px-6 lg:px-8">
+        <section id="workflow" className="scroll-mt-24 py-24 max-w-7xl mx-auto px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <div>
               <h2 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-4xl mb-6">
@@ -663,7 +664,7 @@ export default function LandingPage() {
         </section>
 
         {/* ---------------- 9. INTEGRATIONS ---------------- */}
-        <section className="py-24 bg-zinc-50 dark:bg-zinc-900/30 border-y border-zinc-200 dark:border-zinc-800">
+        <section id="integrations" className="scroll-mt-24 py-24 bg-zinc-50 dark:bg-zinc-900/30 border-y border-zinc-200 dark:border-zinc-800">
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-16">
               <h2 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-4xl mb-4">
@@ -812,6 +813,7 @@ export default function LandingPage() {
         </section>
 
       </main>
+      <LeadLoopFooter />
     </div>
   )
 }
