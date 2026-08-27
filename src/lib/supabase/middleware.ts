@@ -7,7 +7,10 @@ export async function updateSession(request: NextRequest) {
   // Fast path: if there's no Supabase auth cookie present, avoid calling
   // Supabase (network call). Treat as unauthenticated and handle redirects
   // locally to prevent middleware-induced freezes on slow networks.
-  const hasAuthCookie = !!request.cookies.get('sb-access-token')?.value
+  const allCookies = request.cookies.getAll()
+  const hasAuthCookie = allCookies.some(
+    (c) => c.name.includes('auth-token') || c.name.startsWith('sb-')
+  )
 
   let supabase: ReturnType<typeof createServerClient> | null = null
   if (hasAuthCookie) {
