@@ -1,8 +1,11 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
   try {
     const supabase = createAdminClient();
     const { data: run, error } = await supabase.from('automation_runs').select('*').eq('id', id).single();
