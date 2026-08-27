@@ -47,7 +47,7 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
         throw new Error(`Duplicate Check Error: ${exactCheckError.message}`);
       }
 
-      let duplicate = exactInteractions?.[0];
+      let duplicate: { id: string; lead_id: string | null; raw_content: string } | undefined = exactInteractions?.[0];
 
       // Also catch harmless whitespace differences in recently submitted content.
       if (!duplicate) {
