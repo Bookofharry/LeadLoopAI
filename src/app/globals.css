@@ -97,6 +97,41 @@
   }
 }
 
+@keyframes marquee {
+  from {
+    transform: translateX(0%);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.leadloop-marquee-track {
+  animation: marquee var(--marquee-duration, 22s) linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .leadloop-marquee {
+    white-space: normal;
+  }
+
+  .leadloop-marquee-track {
+    width: 100%;
+    animation: none;
+  }
+
+  .leadloop-marquee-copy {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 0.5rem;
+  }
+
+  .leadloop-marquee-copy[aria-hidden="true"] {
+    display: none;
+  }
+}
+
 @layer base {
   * {
     @apply border-border;

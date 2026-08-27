@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { motion } from "framer-motion"
+import { LeadLoopMarquee } from "@/components/marketing/LeadLoopMarquee"
 import { 
   ArrowRight, 
   Bot, 
@@ -68,16 +69,6 @@ export default function LandingPage() {
           
           <div className="mx-auto max-w-7xl">
             <div className="text-center max-w-3xl mx-auto">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-6 flex justify-center"
-              >
-                <span className="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-900/30 px-3 py-1 text-sm font-semibold text-blue-700 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20">
-                  AI-Powered CRM Automation
-                </span>
-              </motion.div>
-              
               <motion.h1 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -136,6 +127,10 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+
+        <div className="mb-20">
+          <LeadLoopMarquee />
+        </div>
 
         {/* ---------------- 2. HERO VISUAL DEMO ---------------- */}
         <section className="relative px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto mb-32">
