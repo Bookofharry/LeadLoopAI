@@ -20,12 +20,74 @@ export interface IncomingLeadPayload {
   receivedAt?: string;
 }
 
+function normalizeManualContent(content: string) {
+  return content.trim().replace(/\s+/g, " ");
+}
+
 export async function processIncomingLead(payload: IncomingLeadPayload) {
   const supabase = createAdminClient();
   let automationRunId: string | null = null;
   let interactionId: string | null = null;
 
   try {
+    // Manual submissions have no provider message ID, so compare normalized content
+    // before creating another interaction, automation run, task, or notification.
+    if (payload.source === "MANUAL") {
+      const normalizedContent = normalizeManualContent(payload.rawContent);
+      const { data: exactInteractions, error: exactCheckError } = await supabase
+        .from("interactions")
+        .select("id, lead_id, raw_content")
+        .eq("company_id", payload.companyId)
+        .eq("source", "MANUAL")
+        .eq("raw_content", payload.rawContent.trim())
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (exactCheckError) {
+        throw new Error(`Duplicate Check Error: ${exactCheckError.message}`);
+      }
+
+      let duplicate = exactInteractions?.[0];
+
+      // Also catch harmless whitespace differences in recently submitted content.
+      if (!duplicate) {
+        const { data: recentInteractions, error: duplicateCheckError } = await supabase
+          .from("interactions")
+          .select("id, lead_id, raw_content")
+          .eq("company_id", payload.companyId)
+          .eq("source", "MANUAL")
+          .order("created_at", { ascending: false })
+          .limit(200);
+
+        if (duplicateCheckError) {
+          throw new Error(`Duplicate Check Error: ${duplicateCheckError.message}`);
+        }
+
+        duplicate = recentInteractions?.find(
+          (interaction) => normalizeManualContent(interaction.raw_content) === normalizedContent
+        );
+      }
+
+      if (duplicate) {
+        let lead = null;
+        if (duplicate.lead_id) {
+          const { data: existingLead } = await supabase
+            .from("leads")
+            .select("id, name, company, email")
+            .eq("id", duplicate.lead_id)
+            .single();
+          lead = existingLead;
+        }
+
+        return {
+          status: "EXACT_DUPLICATE",
+          interactionId: duplicate.id,
+          leadId: duplicate.lead_id,
+          lead,
+        };
+      }
+    }
+
     // 0. Idempotency Check
     if (payload.externalId) {
       const { data: existingInteraction } = await supabase
@@ -52,7 +114,7 @@ export async function processIncomingLead(payload: IncomingLeadPayload) {
       .insert({ 
         company_id: payload.companyId,
         source: payload.source, 
-        raw_content: payload.rawContent,
+        raw_content: payload.rawContent.trim(),
         external_id: payload.externalId || null
       })
       .select("id")
@@ -297,15 +359,28 @@ export async function continueLeadProcessing(
 
     // 8. Follow-up Task Creation
     if (aiResult.recommended_action) {
-      await supabase.from("tasks").insert({
-        company_id: companyId,
-        lead_id: leadId,
-        assigned_to: assignedRepId,
-        title: aiResult.recommended_action,
-        priority: aiResult.priority,
-        created_by: "automation"
-      });
-      await logStep("Task Creation", "Success", { title: aiResult.recommended_action });
+      const { data: matchingTasks } = await supabase
+        .from("tasks")
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("lead_id", leadId)
+        .eq("status", "Pending")
+        .eq("title", aiResult.recommended_action)
+        .limit(1);
+
+      if (matchingTasks && matchingTasks.length > 0) {
+        await logStep("Task Creation", "Skipped", { reason: "Equivalent pending task already exists", task_id: matchingTasks[0].id });
+      } else {
+        await supabase.from("tasks").insert({
+          company_id: companyId,
+          lead_id: leadId,
+          assigned_to: assignedRepId,
+          title: aiResult.recommended_action,
+          priority: aiResult.priority,
+          created_by: "automation"
+        });
+        await logStep("Task Creation", "Success", { title: aiResult.recommended_action });
+      }
     }
 
     // 9. Notification Generation

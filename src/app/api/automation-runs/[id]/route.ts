@@ -13,14 +13,28 @@ export async function GET(
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    // If run completed successfully and has lead_id, fetch lead summary
+    // Return the saved lead data needed by the intake completion screen.
     let lead = null;
+    let assignedRep = null;
     if (run && run.lead_id) {
-      const { data: leadData } = await supabase.from('leads').select('id, name, priority, lead_score').eq('id', run.lead_id).single();
+      const { data: leadData } = await supabase
+        .from('leads')
+        .select('id, name, company, email, phone, location, service, budget_min, budget_max, timeline, intent, priority, lead_score, ai_summary, ai_confidence, assigned_to')
+        .eq('id', run.lead_id)
+        .single();
       lead = leadData;
+
+      if (leadData?.assigned_to) {
+        const { data: repData } = await supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', leadData.assigned_to)
+          .single();
+        assignedRep = repData?.name || null;
+      }
     }
 
-    return NextResponse.json({ success: true, run: { ...run, lead }, }, { status: 200 });
+    return NextResponse.json({ success: true, run: { ...run, lead, assignedRep } }, { status: 200 });
   } catch (err: any) {
     console.error('automation-run GET failed', err);
     return NextResponse.json({ success: false, error: String(err) }, { status: 500 });

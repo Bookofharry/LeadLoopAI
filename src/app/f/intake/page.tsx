@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Sparkles, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, UserCircle, Briefcase, FileSearch } from "lucide-react"
+import { Sparkles, CheckCircle2, AlertCircle, AlertTriangle, ArrowRight, ArrowLeft, UserCircle, Briefcase, FileSearch, X } from "lucide-react"
 import { submitManualIntake } from "./actions"
 import Link from "next/link"
 
@@ -76,7 +76,31 @@ export default function ManualIntakeForm() {
             setProgress(100)
             completionTimer = setTimeout(() => {
               if (!cancelled) {
-                setResult((prev: any) => ({ ...(prev || {}), status: 'SUCCESS', leadId: j.run.lead_id, aiResult: null, assignedRep: j.run.lead?.name || null } as any))
+                const lead = j.run.lead
+                const aiResult = lead ? {
+                  name: lead.name,
+                  company: lead.company,
+                  email: lead.email,
+                  phone: lead.phone,
+                  location: lead.location,
+                  service: lead.service,
+                  budget_min: lead.budget_min,
+                  budget_max: lead.budget_max,
+                  timeline: lead.timeline,
+                  intent: lead.intent,
+                  priority: lead.priority,
+                  lead_score: lead.lead_score,
+                  summary: lead.ai_summary,
+                  confidence: lead.ai_confidence,
+                } : null
+
+                setResult((prev: any) => ({
+                  ...(prev || {}),
+                  status: 'SUCCESS',
+                  leadId: j.run.lead_id,
+                  aiResult,
+                  assignedRep: j.run.assignedRep || 'Unassigned',
+                } as any))
               }
             }, 650)
           } else if (status === 'NEEDS REVIEW' || status === 'NEEDS_REVIEW') {
@@ -281,6 +305,53 @@ export default function ManualIntakeForm() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col justify-center px-4 py-5 sm:px-6 md:h-screen md:min-h-0 md:overflow-hidden md:py-4 lg:px-8">
       <BackButton />
+      {result?.status === 'EXACT_DUPLICATE' && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-zinc-950/60 p-4 backdrop-blur-sm animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-labelledby="duplicate-title">
+          <div className="relative w-full max-w-md rounded-2xl border border-amber-200 bg-white p-6 shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-2 duration-200 dark:border-amber-900/60 dark:bg-zinc-900 sm:p-7">
+            <button
+              type="button"
+              onClick={() => setResult(null)}
+              className="absolute right-4 top-4 rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+              aria-label="Close duplicate alert"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+              <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+            </div>
+            <h2 id="duplicate-title" className="text-xl font-bold text-zinc-950 dark:text-zinc-50">Duplicate lead detected</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+              This exact conversation has already been processed{result.lead?.name ? ` for ${result.lead.name}` : ''}. No new lead, interaction, task, or automation run was created.
+            </p>
+
+            {result.lead && (
+              <div className="mt-5 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+                <p className="font-semibold text-zinc-900 dark:text-zinc-100">{result.lead.name}</p>
+                <p className="mt-0.5 text-sm text-zinc-500">{result.lead.company || result.lead.email || 'Existing lead'}</p>
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setResult(null)}
+                className="rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                Edit submission
+              </button>
+              {result.leadId && (
+                <Link
+                  href={`/leads/${result.leadId}`}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                >
+                  View existing lead <ArrowRight className="h-4 w-4" />
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="sm:mx-auto sm:w-full sm:max-w-2xl">
         <div className="flex justify-center mb-3">
            <div className="flex items-center gap-2 font-bold text-2xl tracking-tight text-zinc-900 dark:text-zinc-50">
